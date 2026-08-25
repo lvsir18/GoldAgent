@@ -85,3 +85,9 @@ reports/*.html
 # 本地规划与改进草稿（不纳入开源仓库）
 /GoldAgent_Full_Optimization_Prompt.md
 /IMPROVEMENT_REPORT.md
+
+# 已完成重构阶段的内部过程文档
+/docs/frontend_gap_analysis.md
+/docs/legacy_compatibility.md
+/docs/migration_plan.md
+/docs/refactor_audit.md

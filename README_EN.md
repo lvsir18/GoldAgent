@@ -6,7 +6,7 @@
 
 GoldAgent lets an LLM dynamically select typed tools for live prices, technical indicators, timely news, forecasting, portfolio analysis, backtesting and private knowledge retrieval—then verifies sources and applies financial guardrails before answering.
 
-[中文文档](README.md) · [Quick Start](#quick-start) · [Architecture](#architecture) · [Engineering Highlights](#engineering-highlights)
+[中文文档](README.md) · [Quick Start](#quick-start) · [Architecture](#architecture) · [Architecture Deep Dive](docs/architecture.md) · [Engineering Highlights](#engineering-highlights)
 
 ![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.116+-009688?logo=fastapi&logoColor=white)
@@ -108,7 +108,7 @@ npm test
 npm run test:e2e
 ```
 
-See the [Chinese README](README.md) for the complete architecture, source layout, API surface, design decisions, configuration, MCP and evaluation workflow.
+See the [architecture deep dive](docs/architecture.md) for the Agent state graph, tool-selection mechanism, streaming protocol and persistence boundaries. The [Chinese README](README.md) covers the complete source layout, API surface, design decisions, configuration, MCP and evaluation workflow.
 
 ## License
 

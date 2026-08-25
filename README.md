@@ -167,7 +167,7 @@ GoldAgent/
 ├── mcp_servers/        # reusable Gold Market MCP server
 ├── evals/              # datasets、evaluators、regression runners
 ├── tests/              # unit、integration、agent、API tests
-├── docs/               # audit、migration、compatibility decisions
+├── docs/               # 当前系统架构与关键运行链路
 ├── scripts/            # legacy data migration utilities
 └── docker-compose.yml  # PostgreSQL + Backend + Frontend
 ```
@@ -297,9 +297,7 @@ python -m evals.runners.compare baseline.json candidate.json
 
 ## 文档
 
-- [`docs/refactor_audit.md`](docs/refactor_audit.md)：原项目审计与问题清单
-- [`docs/migration_plan.md`](docs/migration_plan.md)：分阶段迁移与回滚策略
-- [`docs/legacy_compatibility.md`](docs/legacy_compatibility.md)：旧 Web/规则路由/JSON persistence 删除门禁
+- [`docs/architecture.md`](docs/architecture.md)：当前系统架构、Agent 状态图、工具选择与数据链路
 - [`mcp_servers/gold_market/README.md`](mcp_servers/gold_market/README.md)：Gold Market MCP 使用说明
 - [`CONTRIBUTING.md`](CONTRIBUTING.md)：开发与贡献流程
 - [`SECURITY.md`](SECURITY.md)：安全问题与密钥处理
