@@ -1,0 +1,18 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --canvas: #10110f; --surface: #191a17; --line: #303129; --ink: #f1f0e9;
+  --muted: #a8a79f; --gold: #c5a55a; --positive: #69a67a; --negative: #c66f6f; --warning: #d09b4a;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; background: var(--canvas); color: var(--ink); }
+html { scrollbar-gutter: stable; }
+body { font-family: Inter, Geist, ui-sans-serif, system-ui, sans-serif; }
+button, input, select, textarea { font: inherit; }
+.tabular { font-variant-numeric: tabular-nums; }
+.card { border: 1px solid var(--line); background: var(--surface); border-radius: 14px; }
+.focus-ring:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.scrollbar-subtle { scrollbar-width: thin; scrollbar-color: var(--line) transparent; }

@@ -1,0 +1,163 @@
+# GoldAgent legacy-compatible runtime configuration.
+# Secrets must be provided via environment variables; never place API keys here.
+
+data:
+  time_range:
+    period: "3y"
+  international:
+    symbol: "GC=F"
+    interval: "1d"
+    source_type: "derived"
+  domestic:
+    symbol: "AU0"
+
+processing:
+  timezone: "Asia/Shanghai"
+  remove_weekends: true
+  fill_missing: "forward"
+  strategy_mode: "icbc_accumulation_gold"
+  resample_freq: "W"
+  basis_adjustment: 0.995
+  premium_fx_rate: 7.20
+
+indicators:
+  ma:
+    periods: [5, 20, 60, 120, 250]
+  rsi:
+    period: 14
+    overbought: 75
+    oversold: 25
+  macd:
+    fast: 12
+    slow: 26
+    signal: 9
+  bollinger:
+    period: 20
+    std_dev: 2.0
+  atr:
+    period: 14
+  stochastic:
+    period: 14
+    smooth_k: 3
+    smooth_d: 3
+  obv:
+    period: 14
+  signal_threshold: 0.015
+  confidence:
+    volatility_baseline: 0.05
+    min_confidence: 0.5
+    rsi_midpoint: 50
+    lookback_window: 20
+    price_window: 5
+
+agent:
+  provider: "mimo"
+  model: "mimo-v2.5-pro"
+  temperature: 0.2
+  max_tokens: 4096
+  top_p: 0.9
+  api_url: "https://api.xiaomimimo.com/v1"
+  api_endpoint: "/chat/completions"
+  request_timeout_seconds: 120
+  run_timeout_seconds: 300
+  max_steps: 12
+  tool_timeout_seconds: 30
+  max_tool_retries: 2
+  action_threshold: 0.80
+  analysis_depth: "detailed"
+  confidence_thresholds:
+    bullish: 0.5
+    bearish: 0.5
+    neutral: 0.3
+  support_resistance_offsets:
+    support_normal: 0.97
+    support_rsi_weak: 0.95
+    resistance_normal: 1.03
+    resistance_rsi_strong: 1.05
+  rsi_thresholds:
+    weak: 40
+    strong: 60
+  fusion:
+    change_threshold: 0.5
+    max_confidence: 0.9
+    base_confidence: 0.5
+    confidence_boost: 0.3
+    neutral_confidence: 0.3
+    news_impact_weight: 0.2
+  context_prompt: |
+    当前策略模式为“积存金投资”。输入数据可能来自期货或推导行情，
+    实际交易价格以银行报价为准。关注周线趋势，只有预期收益覆盖
+    1.5% 成本阈值时才给出方向性建议，以定投和长期持有为主。
+
+rag:
+  enabled: true
+  news_keywords:
+    analyze:
+      - "黄金价格"
+      - "伦敦金"
+      - "COMEX黄金"
+      - "美联储 利率 黄金"
+      - "美元指数 黄金"
+      - "地缘政治 黄金"
+      - "央行购金"
+      - "中国黄金ETF"
+    forecast:
+      - "黄金价格预测"
+      - "黄金走势"
+      - "美国CPI 黄金"
+      - "美联储议息 黄金"
+      - "非农 黄金"
+      - "实际利率 黄金"
+      - "避险情绪 黄金"
+  use_llm_fetcher: false
+  use_search_api: true
+  max_news_results: 20
+  cache_hours: 8
+  embedding_model: "text-embedding-v1"
+  embedding_timeout: 10
+  llm_timeout: 120
+  use_for_analysis: true
+  use_for_forecast: true
+  news_weight: 0.7
+  relevance_threshold: 0.3
+  top_k: 5
+
+tavily:
+  timeout: 60
+  max_retries: 2
+  fallback_to_technical: true
+  max_results: 10
+
+forecast:
+  periods: 3
+  method: "exponential"
+  confidence_threshold: 0.5
+  ma_window: 5
+  exponential_alpha: 0.3
+
+database:
+  url: "sqlite:///data/goldagent.db"
+  echo: false
+
+security:
+  demo_mode: true
+  frontend_origins:
+    - "http://127.0.0.1:3000"
+    - "http://localhost:3000"
+    - "http://127.0.0.1:8000"
+  access_token_minutes: 30
+  refresh_token_days: 7
+  rate_limit_per_minute: 120
+
+output:
+  report_format: "markdown"
+  chart_dpi: 300
+  save_report: true
+  save_resampled_charts: true
+
+logging:
+  level: "INFO"
+  file: "logs/goldagent.log"
+  max_size: "10MB"
+  backup_count: 5
+  json: false
