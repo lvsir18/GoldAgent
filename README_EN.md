@@ -19,6 +19,14 @@ GoldAgent lets an LLM dynamically select typed tools for live prices, technical 
 
 > GoldAgent is a research assistant. It does not connect to brokers, place trades, guarantee returns, or fabricate fallback market/news data.
 
+## Agent Workbench
+
+The model selects tools dynamically for each question. `Agent Activity` exposes current stages and real tool-execution facts without revealing hidden reasoning.
+
+<p align="center">
+  <img src="docs/assets/goldagent-agent-chat.png" alt="GoldAgent Agent chat and tool activity workbench" width="100%" />
+</p>
+
 ## Why GoldAgent
 
 The hard part of a financial Agent is not generating market commentary. It is building reliable boundaries between LLM decisions, deterministic calculations, real-time data, source provenance, tenant isolation and safe financial communication.
@@ -38,6 +46,24 @@ The hard part of a financial Agent is not generating market commentary. It is bu
 | API | **49** FastAPI routes |
 | Quality | **55** offline eval cases and **27** backend/frontend tests, plus Playwright E2E |
 | Product | Dashboard, Analysis, Agent Chat, Forecast, Backtest, Portfolio, News, Knowledge and Reports |
+
+## Product Screens
+
+### Gold Market Dashboard
+
+AU0 price, period returns, source and trading-time metadata, candlesticks and key technical indicators in one view.
+
+<p align="center">
+  <img src="docs/assets/goldagent-dashboard.png" alt="GoldAgent gold market dashboard" width="100%" />
+</p>
+
+### Real-time Gold News
+
+News from the latest 72 hours is prioritized, with a 14-day fallback window when necessary; every card retains its publisher and publication time.
+
+<p align="center">
+  <img src="docs/assets/goldagent-market-news.png" alt="GoldAgent real-time gold news" width="100%" />
+</p>
 
 ## Architecture
 

@@ -22,6 +22,14 @@
 > [!IMPORTANT]
 > GoldAgent 是研究与决策辅助系统，不连接券商、不执行交易、不承诺收益。外部数据不可用时返回明确错误，不用虚构行情或新闻掩盖失败。
 
+## Agent 对话工作台
+
+模型根据问题动态选择工具；右侧 `Agent Activity` 展示当前阶段和真实工具执行事实，不暴露隐藏推理。
+
+<p align="center">
+  <img src="docs/assets/goldagent-agent-chat.png" alt="GoldAgent Agent 对话与工具活动界面" width="100%" />
+</p>
+
 ## 为什么做 GoldAgent
 
 金融 Agent 的难点并不是让模型“谈论市场”，而是让它在实时性、确定性计算、数据来源、用户隔离和风险表达之间建立可靠边界。
@@ -44,6 +52,24 @@ GoldAgent 将这些问题拆成一套可落地的工程方案：
 | API | **49 个** FastAPI 路由，覆盖认证、会话、市场、Agent、资产与知识库 |
 | 质量 | **55 条**离线评测样例、**27 个**后端/前端测试用例、Playwright E2E、GitHub Actions |
 | 交付 | Python 3.12、Node.js 22、PostgreSQL 16 + pgvector、Docker Compose |
+
+## 产品界面
+
+### 黄金市场仪表盘
+
+实时展示 AU0 最新成交、周期涨跌、数据来源、交易时间、K 线和关键技术指标。
+
+<p align="center">
+  <img src="docs/assets/goldagent-dashboard.png" alt="GoldAgent 黄金市场仪表盘" width="100%" />
+</p>
+
+### 实时黄金新闻
+
+优先展示最近 72 小时新闻，数量不足时扩展到 14 天，并保留媒体来源与发布时间。
+
+<p align="center">
+  <img src="docs/assets/goldagent-market-news.png" alt="GoldAgent 实时黄金新闻" width="100%" />
+</p>
 
 ## 核心能力
 
