@@ -13,7 +13,7 @@ from sqlalchemy import select
 
 from ..dependencies import get_current_user_id, get_database
 from ...agent.graph import build_agent_runtime
-from ...db.models import ToolCallRecord
+from ...db.models import PortfolioRecord, RiskProfile, ToolCallRecord, UserProfile
 from ...db.repositories import AgentRunRepository, SessionRepository
 from ...db.session import Database
 from ...tools.registry import build_tool_registry
@@ -46,6 +46,29 @@ async def _ensure_session(database: Database, user_id: str, session_id: str | No
 ProgressCallback = Callable[[str, dict[str, Any]], Awaitable[None]]
 
 
+async def _load_user_context(database: Database, user_id: str) -> tuple[dict[str, Any] | None, dict[str, Any], dict[str, Any] | None]:
+    async with database.session() as session:
+        portfolio = await session.scalar(select(PortfolioRecord).where(PortfolioRecord.user_id == user_id))
+        profile = await session.scalar(select(UserProfile).where(UserProfile.user_id == user_id))
+        risk = await session.scalar(select(RiskProfile).where(RiskProfile.user_id == user_id))
+    portfolio_context = None if portfolio is None else {
+        "grams": portfolio.grams,
+        "average_cost": portfolio.average_cost,
+        "planned_investment": portfolio.planned_investment,
+        "currency": portfolio.currency,
+    }
+    risk_context = None if risk is None else {
+        "risk_level": risk.risk_level,
+        "max_drawdown_pct": risk.max_drawdown_pct,
+        "horizon": risk.horizon,
+        "notes": risk.notes,
+    }
+    preferences = dict(profile.preferences or {}) if profile else {}
+    if profile and profile.display_name:
+        preferences["display_name"] = profile.display_name
+    return portfolio_context, preferences, risk_context
+
+
 async def _save_run_failure(
     database: Database, user_id: str, run_id: str, exc: BaseException, status: str,
 ) -> None:
@@ -66,9 +89,13 @@ async def _run(
             await sessions.rename(session_item.id, session_title_from_message(body.message))
         await sessions.add_message(session_item.id, "user", body.message)
         await AgentRunRepository(session, user_id).create(session_item.id, run_id)
+    portfolio_context, user_preferences, risk_profile = await _load_user_context(database, user_id)
     runtime = build_agent_runtime(
         request.app.state.settings,
-        tools=build_tool_registry(request.app.state.services, request.app.state.knowledge, user_id),
+        tools=build_tool_registry(
+            request.app.state.services, request.app.state.knowledge, user_id,
+            portfolio_context=portfolio_context, risk_profile=risk_profile,
+        ),
         checkpointer=request.app.state.checkpointer,
     )
     try:
@@ -78,6 +105,9 @@ async def _run(
             session_id=session_item.id,
             run_id=run_id,
             on_event=on_event,
+            portfolio_context=portfolio_context,
+            user_preferences=user_preferences,
+            risk_profile=risk_profile,
         )
     except asyncio.CancelledError as exc:
         await asyncio.shield(_save_run_failure(database, user_id, run_id, exc, "cancelled"))

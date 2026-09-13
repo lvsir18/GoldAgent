@@ -20,6 +20,10 @@ async def test_sqlite_database_and_tenant_scoped_rag(tmp_path):
         assert document.status == "ready"
         assert results and results[0]["document_id"] == document.id
         assert await service.search("other-tenant", "实际利率") == []
+        assert await service.delete_document(DEMO_USER_ID, document.id) is True
+        assert await service.get_document(DEMO_USER_ID, document.id) is None
+        assert await service.search(DEMO_USER_ID, "实际利率") == []
+        assert await service.delete_document(DEMO_USER_ID, document.id) is False
     finally:
         await database.dispose()
 

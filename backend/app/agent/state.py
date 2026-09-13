@@ -20,6 +20,8 @@ class GoldAgentState(TypedDict, total=False):
     news_context: list[dict[str, Any]] | None
     rag_context: list[dict[str, Any]] | None
     portfolio_context: dict[str, Any] | None
+    user_preferences: dict[str, Any] | None
+    risk_profile: dict[str, Any] | None
     forecast_context: dict[str, Any] | None
     tool_results: list[dict[str, Any]]
     current_step: int
@@ -30,4 +32,3 @@ class GoldAgentState(TypedDict, total=False):
     verification_result: dict[str, Any] | None
     final_answer: str | None
     status: str
-

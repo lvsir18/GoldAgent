@@ -5,6 +5,7 @@ import { MessageSquarePlus, Trash2 } from "lucide-react";
 import { useLanguage } from "@/i18n/language";
 import { streamChat, sessionsApi } from "@/services/api/chat";
 import type { Session } from "@/types/api";
+import { MarkdownContent } from "@/components/common/markdown-content";
 
 type Message = { role: "user" | "assistant"; content: string };
 type Activity = { tool: string; success: boolean | null };
@@ -219,8 +220,10 @@ export function AgentChat() {
             </div>
           )}
           {messages.map((message, index) => (
-            <div key={index} className={`w-fit max-w-[88%] whitespace-pre-wrap rounded-2xl px-4 py-3 text-sm leading-6 sm:max-w-[min(82%,52rem)] ${message.role === "user" ? "ml-auto bg-gold text-black" : "bg-canvas"}`}>
-              {message.content || (busy ? progress || text("正在执行…", "Working…") : "")}
+            <div key={index} className={`w-fit max-w-[88%] rounded-2xl px-4 py-3 text-sm leading-6 sm:max-w-[min(82%,52rem)] ${message.role === "user" ? "ml-auto whitespace-pre-wrap bg-gold text-black" : "bg-canvas"}`}>
+              {message.role === "assistant" && message.content
+                ? <MarkdownContent content={message.content}/>
+                : message.content || (busy ? progress || text("正在执行…", "Working…") : "")}
             </div>
           ))}
         </div>

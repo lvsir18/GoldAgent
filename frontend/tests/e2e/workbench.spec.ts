@@ -7,6 +7,7 @@ const ok = (route: Route, data: unknown) => route.fulfill({
 });
 
 async function mockApi(page: Page) {
+  let documents = [{ id: "document-1", filename: "gold-notes.md", status: "ready", metadata: { chunk_count: 2, embedding_provider: "fixture" } }];
   await page.route("**/api/v1/**", async route => {
     const url = new URL(route.request().url());
     const path = url.pathname;
@@ -23,6 +24,10 @@ async function mockApi(page: Page) {
     if (path.endsWith("/portfolio") && route.request().method() === "GET") return ok(route, { grams: 20, average_cost: 500, planned_investment: 1000 });
     if (path.endsWith("/portfolio") && route.request().method() === "PUT") return ok(route, { grams: 20, average_cost: 500, planned_investment: 1000 });
     if (path.includes("/portfolio/analysis")) return ok(route, { market_value: 10500, cost_basis: 10000, pnl: 500, pnl_pct: 5, break_even_price: 500, risk_level: "balanced" });
+    if (path.endsWith("/knowledge/documents") && route.request().method() === "GET") return ok(route, documents);
+    if (path.endsWith("/knowledge/documents/document-1") && route.request().method() === "DELETE") { documents = []; return ok(route, { deleted: true }); }
+    if (path.endsWith("/users/me") && route.request().method() === "GET") return ok(route, { id: "user-1", email: "demo@goldagent.local", profile: null, risk_profile: null });
+    if (path.endsWith("/users/me/profile") || path.endsWith("/users/me/risk-profile")) return ok(route, {});
     if (path.endsWith("/reports")) return ok(route, []);
     return ok(route, []);
   });
@@ -47,7 +52,7 @@ test("dashboard and core workbenches complete their primary flows", async ({ pag
 
   await page.goto("/backtest");
   await page.getByRole("button", { name: "运行回测" }).click();
-  await expect(page.getByText("cumulative_return")).toBeVisible();
+  await expect(page.getByText("累计收益率")).toBeVisible();
 
   await page.goto("/portfolio");
   await page.getByLabel("当前参考价").fill("525");
@@ -57,4 +62,15 @@ test("dashboard and core workbenches complete their primary flows", async ({ pag
 
   await page.goto("/reports");
   await expect(page.getByRole("heading", { name: "分析报告" })).toBeVisible();
+
+  await page.goto("/knowledge");
+  await expect(page.getByText("gold-notes.md")).toBeVisible();
+  page.once("dialog", dialog => dialog.accept());
+  await page.getByRole("button", { name: "删除文档：gold-notes.md" }).click();
+  await expect(page.getByText("gold-notes.md")).not.toBeVisible();
+
+  await page.goto("/settings");
+  await expect(page.getByRole("heading", { name: "个性化设置" })).toBeVisible();
+  await page.getByRole("button", { name: "保存个性化设置" }).click();
+  await expect(page.getByText("已保存，将在下一次 Agent 对话中生效。")).toBeVisible();
 });

@@ -59,6 +59,8 @@ flowchart TD
 - 按会话和运行隔离的 Checkpoint namespace；
 - `load_context`、`tool_started`、`tool_finished`、`verify`、`guardrail` 等进度事件。
 
+每次运行前，API 还会按当前 `user_id` 加载已保存的投资组合、风险画像和回答偏好。它们只作为用户上下文影响回答，不能覆盖实时数据工具、来源核验和金融安全规则；持仓分析工具在未显式传参时默认使用这份已保存持仓。
+
 ## 4. 工具如何按问题选择
 
 FastAPI 为每次请求构建可用工具集合，并把工具描述与 Pydantic 参数 Schema 交给 LLM Gateway。模型根据用户问题决定零个、一个或多个工具，工具结果作为 `ToolMessage` 返回模型；如果信息仍不足，模型可以继续调用其他工具，直到生成答案或达到步数上限。

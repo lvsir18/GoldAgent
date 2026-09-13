@@ -35,6 +35,7 @@ The hard part of a financial Agent is not generating market commentary. It is bu
 - **Every important data point is traceable.** Market results carry source type, retrieval time and freshness metadata.
 - **News freshness is enforced in code.** Results from the last 72 hours are prioritized; a 14-day window fills any shortage.
 - **Safety is an explicit graph stage.** Tool results are verified and guaranteed-return language is removed before a response is returned.
+- **Saved context carries across chats.** Holdings, risk preferences, response language and style are loaded automatically for each Agent run.
 - **It is more than a chat UI.** The repository includes auth, multi-user persistence, SSE execution events, RAG, evals, CI and Docker delivery.
 
 ## At a Glance
@@ -44,7 +45,7 @@ The hard part of a financial Agent is not generating market commentary. It is bu
 | Agent | LangGraph loop, autonomous typed-tool selection, retries, timeouts, verification, guardrails, checkpoints |
 | Tools | **8** tools for price, history, indicators, news, forecast, portfolio, backtest and knowledge |
 | API | **49** FastAPI routes |
-| Quality | **55** offline eval cases and **27** backend/frontend tests, plus Playwright E2E |
+| Quality | **55** offline eval cases and **29** backend/frontend tests, plus Playwright E2E |
 | Product | Dashboard, Analysis, Agent Chat, Forecast, Backtest, Portfolio, News, Knowledge and Reports |
 
 ## Product Screens

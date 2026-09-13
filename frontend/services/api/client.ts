@@ -8,10 +8,12 @@ export class ApiClientError extends Error {
 
 export async function apiClient<T>(path: string, init?: RequestInit): Promise<T> {
   const tokens = getStoredTokens();
-  const request = (accessToken?: string) => fetch(`${API_ROOT}${path}`, {
-    ...init,
-    headers: { "Content-Type": "application/json", ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}), ...(init?.headers ?? {}) },
-  });
+  const request = (accessToken?: string) => {
+    const headers = new Headers(init?.headers);
+    if (!(init?.body instanceof FormData) && !headers.has("Content-Type")) headers.set("Content-Type", "application/json");
+    if (accessToken) headers.set("Authorization", `Bearer ${accessToken}`);
+    return fetch(`${API_ROOT}${path}`, { ...init, headers });
+  };
   let response = await request(tokens?.access_token);
   if (response.status === 401 && tokens?.refresh_token && !path.startsWith("/auth/")) {
     const refreshed = await fetch(`${API_ROOT}/auth/refresh`, {

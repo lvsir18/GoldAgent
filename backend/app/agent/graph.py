@@ -18,7 +18,7 @@ from ..llm.base import LLMGateway
 from ..llm.gateway import build_llm_gateway
 from ..tools.registry import ToolRegistry, build_tool_registry
 from .guardrails import apply_financial_guardrail, verify_tool_results
-from .prompts import SYSTEM_PROMPT
+from .prompts import build_system_prompt
 from .state import GoldAgentState
 
 ProgressCallback = Callable[[str, dict[str, Any]], Awaitable[None]]
@@ -59,8 +59,11 @@ class GoldAgentRuntime:
     async def _load_context(self, state: GoldAgentState) -> dict[str, Any]:
         await self._emit("run_progress", stage="load_context", message="正在准备会话上下文…")
         messages = state.get("messages", [])
+        system_prompt = build_system_prompt(
+            state.get("user_preferences"), state.get("risk_profile"), state.get("portfolio_context"),
+        )
         if not messages or not isinstance(messages[0], SystemMessage):
-            messages = [SystemMessage(content=SYSTEM_PROMPT), *messages]
+            messages = [SystemMessage(content=system_prompt), *messages]
         return {
             "messages": messages,
             "run_id": state.get("run_id") or str(uuid.uuid4()),
@@ -133,10 +136,11 @@ class GoldAgentRuntime:
 
     async def _financial_guardrail(self, state: GoldAgentState) -> dict[str, Any]:
         await self._emit("run_progress", stage="guardrail", message="正在应用金融风险护栏…")
+        portfolio = state.get("portfolio_context") or {}
         answer, flags = apply_financial_guardrail(
             state.get("final_answer") or "暂时无法生成回答。",
             state.get("verification_result"),
-            bool(state.get("portfolio_context")),
+            float(portfolio.get("grams", 0) or 0) > 0,
         )
         verification = dict(state.get("verification_result") or {})
         verification["guardrail_flags"] = flags
@@ -148,13 +152,17 @@ class GoldAgentRuntime:
     async def invoke(
         self, *, user_message: str, user_id: str, session_id: str,
         run_id: str | None = None, on_event: ProgressCallback | None = None,
+        portfolio_context: dict[str, Any] | None = None,
+        user_preferences: dict[str, Any] | None = None,
+        risk_profile: dict[str, Any] | None = None,
     ) -> GoldAgentState:
         resolved_run_id = run_id or str(uuid.uuid4())
         state: GoldAgentState = {
             "messages": [HumanMessage(content=user_message)], "user_id": user_id,
             "session_id": session_id, "run_id": resolved_run_id,
             "tool_results": [], "current_step": 0, "max_steps": self.settings.agent.max_steps,
-            "retry_count": 0, "status": "created",
+            "retry_count": 0, "status": "created", "portfolio_context": portfolio_context,
+            "user_preferences": user_preferences, "risk_profile": risk_profile,
         }
         # A namespace per run prevents a cancelled run from contaminating the next
         # request while retaining durable PostgreSQL checkpoints for diagnostics.

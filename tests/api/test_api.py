@@ -32,6 +32,15 @@ def test_health_auth_and_all_primary_workbench_apis(tmp_path, market_frame, sour
         assert client.post("/api/v1/auth/refresh", json={"refresh_token": refresh}).status_code == 200
         me = client.get("/api/v1/users/me", headers={"Authorization": f"Bearer {access}"})
         assert me.json()["data"]["email"] == "person@example.com"
+        profile = client.put("/api/v1/users/me/profile", headers={"Authorization": f"Bearer {access}"}, json={
+            "display_name": "小李",
+            "preferences": {"response_language": "zh", "response_style": "detailed", "tone": "friendly", "show_sources": True, "custom_instructions": "先给结论"},
+        })
+        assert profile.json()["data"]["preferences"]["response_style"] == "detailed"
+        risk = client.put("/api/v1/users/me/risk-profile", headers={"Authorization": f"Bearer {access}"}, json={
+            "risk_level": "conservative", "max_drawdown_pct": 10, "horizon": "long", "notes": "控制回撤",
+        })
+        assert risk.json()["data"]["risk_level"] == "conservative"
 
         created = client.post("/api/v1/sessions", json={"title": "API smoke"})
         assert created.status_code == 200
@@ -64,7 +73,10 @@ def test_health_auth_and_all_primary_workbench_apis(tmp_path, market_frame, sour
 
         upload = client.post("/api/v1/knowledge/documents", files={"file": ("gold.md", "黄金与实际利率相关。", "text/markdown")})
         assert upload.status_code == 200
+        document_id = upload.json()["data"]["id"]
         assert client.post("/api/v1/knowledge/search", json={"query": "实际利率", "top_k": 3}).json()["data"]
+        assert client.delete(f"/api/v1/knowledge/documents/{document_id}").json()["data"]["deleted"] is True
+        assert client.delete(f"/api/v1/knowledge/documents/{document_id}").status_code == 404
 
         report = client.post("/api/v1/reports", json={"title": "测试报告", "report_type": "analysis", "payload": {"price": 525}})
         assert report.status_code == 200

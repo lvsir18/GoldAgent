@@ -28,3 +28,20 @@ def test_registry_exposes_bounded_typed_tools(market_frame, source_metadata):
         "get_gold_spot_price", "get_market_history", "run_backtest", "search_financial_news",
     }
     assert registry.get("get_market_history").args_schema.model_json_schema()["properties"]["limit"]["maximum"] == 500
+
+
+async def test_portfolio_tool_uses_saved_holding_by_default(market_frame, source_metadata):
+    container = ServiceContainer(
+        settings=AppSettings(), market=MarketService(FakeMarketProvider(market_frame, source_metadata)),
+        technical=TechnicalAnalysisService(), forecast=ForecastService(), news=NewsService(NoNews()),
+        portfolio=PortfolioService(), backtest=BacktestService(), reports=ReportService(),
+    )
+    registry = build_tool_registry(
+        container,
+        portfolio_context={"grams": 20, "average_cost": 500, "planned_investment": 1000},
+        risk_profile={"risk_level": "conservative", "horizon": "long"},
+    )
+    result = await registry.get("analyze_portfolio").ainvoke({"current_price": 525})
+    assert result["market_value"] == 10500
+    assert result["pnl"] == 500
+    assert result["risk_level"] == "conservative"

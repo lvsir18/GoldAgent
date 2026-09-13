@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 from sqlalchemy import select
+from typing import Literal
 
 from ..dependencies import get_current_user_id, get_database
 from ...db.models import RiskProfile, User, UserProfile
@@ -9,15 +10,23 @@ from ...db.session import Database
 router = APIRouter(prefix="/users/me", tags=["users"])
 
 
+class ResponsePreferences(BaseModel):
+    response_language: Literal["auto", "zh", "en"] = "auto"
+    response_style: Literal["concise", "balanced", "detailed"] = "balanced"
+    tone: Literal["professional", "friendly", "direct"] = "professional"
+    show_sources: bool = True
+    custom_instructions: str = Field(default="", max_length=2000)
+
+
 class ProfileUpdate(BaseModel):
     display_name: str | None = Field(default=None, max_length=100)
-    preferences: dict = Field(default_factory=dict)
+    preferences: ResponsePreferences = Field(default_factory=ResponsePreferences)
 
 
 class RiskUpdate(BaseModel):
-    risk_level: str = "balanced"
+    risk_level: Literal["conservative", "balanced", "aggressive"] = "balanced"
     max_drawdown_pct: float | None = Field(default=None, ge=0, le=100)
-    horizon: str = "medium"
+    horizon: Literal["short", "medium", "long"] = "medium"
     notes: str = Field(default="", max_length=2000)
 
 
@@ -37,7 +46,7 @@ async def update_profile(body: ProfileUpdate, database: Database = Depends(get_d
         if not item:
             item = UserProfile(user_id=user_id)
             session.add(item)
-        item.display_name, item.preferences = body.display_name, body.preferences
+        item.display_name, item.preferences = body.display_name, body.preferences.model_dump()
         await session.flush()
         return {"success": True, "data": {"display_name": item.display_name, "preferences": item.preferences}, "meta": {}}
 

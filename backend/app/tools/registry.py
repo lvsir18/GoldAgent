@@ -48,7 +48,13 @@ def _bounded(fn: Callable[..., Awaitable[Any]], timeout_seconds: int):
     return invoke
 
 
-def build_tool_registry(container: ServiceContainer | None = None, knowledge: KnowledgeService | None = None, user_id: str | None = None) -> ToolRegistry:
+def build_tool_registry(
+    container: ServiceContainer | None = None,
+    knowledge: KnowledgeService | None = None,
+    user_id: str | None = None,
+    portfolio_context: dict[str, Any] | None = None,
+    risk_profile: dict[str, Any] | None = None,
+) -> ToolRegistry:
     services = container or build_container()
     timeout = services.settings.agent.tool_timeout_seconds
 
@@ -84,13 +90,22 @@ def build_tool_registry(container: ServiceContainer | None = None, knowledge: Kn
         return result.model_dump(mode="json")
 
     async def analyze_portfolio(
-        grams: float, average_cost: float, current_price: float, planned_investment: float = 0,
-        horizon: str = "medium", risk_level: str = "balanced",
+        current_price: float, grams: float | None = None, average_cost: float | None = None,
+        planned_investment: float | None = None, horizon: str | None = None,
+        risk_level: str | None = None,
     ) -> dict:
-        """Calculate portfolio PnL and break-even information; never place trades."""
+        """Analyze PnL using the user's saved portfolio by default; never place trades."""
+        saved = portfolio_context or {}
+        resolved_grams = saved.get("grams") if grams is None else grams
+        resolved_cost = saved.get("average_cost") if average_cost is None else average_cost
+        if resolved_grams is None or resolved_cost is None or (grams is None and float(resolved_grams) <= 0):
+            raise ValueError("No saved portfolio is available; grams and average_cost are required")
         portfolio = Portfolio(
-            grams=grams, average_cost=average_cost, planned_investment=planned_investment,
-            horizon=horizon, risk_level=risk_level,
+            grams=resolved_grams,
+            average_cost=resolved_cost,
+            planned_investment=saved.get("planned_investment", 0) if planned_investment is None else planned_investment,
+            horizon=horizon or (risk_profile or {}).get("horizon", "medium"),
+            risk_level=risk_level or (risk_profile or {}).get("risk_level", "balanced"),
         )
         return services.portfolio.analyze(portfolio, current_price).model_dump(mode="json")
 

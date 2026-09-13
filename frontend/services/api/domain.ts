@@ -29,8 +29,7 @@ export const knowledgeApi = {
   list: () => apiClient<any[]>("/knowledge/documents"),
   upload: async (file: File) => {
     const form = new FormData(); form.append("file", file);
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_ROOT ?? "/api/v1"}/knowledge/documents`, { method: "POST", body: form });
-    const payload = await response.json(); if (!response.ok || payload.success === false) throw new Error(payload.error?.message ?? "Upload failed"); return payload.data;
+    return apiClient<any>("/knowledge/documents", { method: "POST", body: form });
   },
   search: (query: string, top_k = 5) => apiClient<any[]>("/knowledge/search", { method: "POST", body: JSON.stringify({ query, top_k }) }),
   remove: (id: string) => apiClient<any>(`/knowledge/documents/${id}`, { method: "DELETE" }),

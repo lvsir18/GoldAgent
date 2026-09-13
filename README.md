@@ -40,6 +40,7 @@ GoldAgent 将这些问题拆成一套可落地的工程方案：
 - **数据可追溯**：行情携带来源、直接/推导类型、更新时间和陈旧状态；Agent 回答前统一核验工具结果。
 - **实时新闻有明确时间策略**：优先最近 72 小时，结果不足时扩展到 14 天，并保留媒体来源与发布时间。
 - **金融风险有显式护栏**：过滤保证收益式表达，缺少持仓上下文时拒绝给出伪精确仓位，并统一追加风险说明。
+- **持仓与个性化设置进入 Agent 上下文**：保存一次持仓、风险偏好、回答语言和风格，后续对话自动使用，无需重复输入。
 - **从 Demo 到可部署系统**：包含认证、多用户数据、异步 API、SSE 进度、PostgreSQL/pgvector、CI、Docker Compose、测试与离线评测。
 
 ## 项目一览
@@ -50,7 +51,7 @@ GoldAgent 将这些问题拆成一套可落地的工程方案：
 | 工具 | **8 个**类型化工具：现价、历史行情、技术指标、新闻、预测、持仓、回测、知识库 |
 | 产品 | Dashboard、Market Analysis、Agent Chat、Forecast、Backtest、Portfolio、News、Knowledge、Reports、Settings |
 | API | **49 个** FastAPI 路由，覆盖认证、会话、市场、Agent、资产与知识库 |
-| 质量 | **55 条**离线评测样例、**27 个**后端/前端测试用例、Playwright E2E、GitHub Actions |
+| 质量 | **55 条**离线评测样例、**29 个**后端/前端测试用例、Playwright E2E、GitHub Actions |
 | 交付 | Python 3.12、Node.js 22、PostgreSQL 16 + pgvector、Docker Compose |
 
 ## 产品界面
@@ -169,7 +170,7 @@ flowchart LR
 | Realtime News | Tavily、httpx、Tenacity | 72 小时优先/14 天补足、来源与发布时间、超时重试 |
 | Persistence | SQLAlchemy 2 Async、Alembic | Repository 分层、用户/会话/运行/工具轨迹/研究资产模型 |
 | Vector Search | PostgreSQL 16、pgvector | 用户隔离的文档 Chunk 与 Embedding 检索 |
-| Frontend | Next.js 15、React 19、TypeScript | App Router、双语界面、响应式工作台、SSE Agent Chat |
+| Frontend | Next.js 15、React 19、TypeScript | App Router、双语界面、Markdown 回答、响应式工作台、SSE Agent Chat |
 | Client State | TanStack Query、Zustand | 服务端状态缓存、认证状态和 API 边界 |
 | Visualization | ECharts、lightweight-charts | K 线、技术分析、预测与回测可视化 |
 | Quality | pytest、Vitest、RTL、Playwright | Unit / Integration / Agent / API / E2E 与离线评测回归 |

@@ -84,6 +84,10 @@ class KnowledgeService:
 
     async def delete_document(self, user_id: str, document_id: str) -> bool:
         async with self.database.session() as session:
+            exists = await session.scalar(select(DocumentRecord.id).where(DocumentRecord.id == document_id, DocumentRecord.user_id == user_id))
+            if not exists:
+                return False
+            await session.execute(delete(DocumentChunk).where(DocumentChunk.document_id == document_id, DocumentChunk.user_id == user_id))
             result = await session.execute(delete(DocumentRecord).where(DocumentRecord.id == document_id, DocumentRecord.user_id == user_id))
             return bool(result.rowcount)
 

@@ -31,12 +31,12 @@ class ForecastToolQuery(MarketQuery):
 
 
 class PortfolioToolQuery(BaseModel):
-    grams: float = Field(ge=0)
-    average_cost: float = Field(ge=0)
-    planned_investment: float = Field(default=0, ge=0)
     current_price: float = Field(gt=0)
-    horizon: str = "medium"
-    risk_level: str = "balanced"
+    grams: float | None = Field(default=None, ge=0, description="Defaults to the user's saved holding")
+    average_cost: float | None = Field(default=None, ge=0, description="Defaults to the user's saved average cost")
+    planned_investment: float | None = Field(default=None, ge=0, description="Defaults to the user's saved plan")
+    horizon: str | None = Field(default=None, description="Defaults to the user's saved horizon")
+    risk_level: str | None = Field(default=None, description="Defaults to the user's saved risk level")
 
 
 class BacktestToolQuery(MarketQuery):
