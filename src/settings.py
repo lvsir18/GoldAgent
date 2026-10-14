@@ -56,7 +56,7 @@ class ProcessingSettings(FlexibleModel):
 
 class AgentSettings(FlexibleModel):
     provider: str = "mimo"
-    model: str = "mimo-v2.5-pro"
+    model: str = "mimo-v2.6-pro"
     temperature: float = Field(default=0.2, ge=0, le=2)
     max_tokens: int = Field(default=4096, gt=0, le=131072)
     top_p: float = Field(default=0.9, gt=0, le=1)
@@ -128,7 +128,7 @@ class AppSettings(FlexibleModel):
 
         raw.setdefault("agent", {})
         raw["agent"]["provider"] = os.getenv("LLM_PROVIDER", raw["agent"].get("provider", "mimo"))
-        raw["agent"]["model"] = os.getenv("MIMO_MODEL", raw["agent"].get("model", "mimo-v2.5-pro"))
+        raw["agent"]["model"] = os.getenv("MIMO_MODEL", raw["agent"].get("model", "mimo-v2.6-pro"))
         raw["agent"]["api_url"] = os.getenv("MIMO_BASE_URL", raw["agent"].get("api_url"))
         raw.setdefault("database", {})
         raw["database"]["url"] = os.getenv("DATABASE_URL", raw["database"].get("url", "sqlite:///data/goldagent.db"))

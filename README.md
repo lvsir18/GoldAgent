@@ -250,7 +250,7 @@ npm run dev
 
 ```dotenv
 LLM_PROVIDER=mimo
-MIMO_MODEL=mimo-v2.5-pro
+MIMO_MODEL=mimo-v2.6-pro
 MIMO_API_KEY=your-key
 TAVILY_API_KEY=your-key
 DEMO_MODE=true

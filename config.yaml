@@ -52,7 +52,7 @@ indicators:
 
 agent:
   provider: "mimo"
-  model: "mimo-v2.5-pro"
+  model: "mimo-v2.6-pro"
   temperature: 0.2
   max_tokens: 4096
   top_p: 0.9
