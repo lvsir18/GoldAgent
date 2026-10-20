@@ -32,6 +32,16 @@
 
 ## 为什么做 GoldAgent
 
+### 本轮产品迭代
+
+从“问完即走”的聊天工具，向可核查、可保存、可复访的黄金研究流程演进：
+
+- 今日市场与持仓参考影响 → 研究模板 / 新闻一键研究 → 工具证据 → 任务记录 → 报告预览与认证下载。
+- 修复回测账本对账、预测评估周期、旧上下文残留和流式尾部等待；提供回归测试。
+- 快速 / 深入研究有明确轮数、输出与超时预算；只读工具限并发、同 Run 重复请求合并。
+
+设计取舍、改造原因、验证证据和面试讲解见 [产品迭代记录](docs/PRODUCT_ITERATION.md)。尚未实现的定时监控、持久化任务队列等仍列在 [路线图](ROADMAP.md)，不作为当前功能宣传。
+
 金融 Agent 的难点并不是让模型“谈论市场”，而是让它在实时性、确定性计算、数据来源、用户隔离和风险表达之间建立可靠边界。
 
 GoldAgent 将这些问题拆成一套可落地的工程方案：
@@ -49,7 +59,7 @@ GoldAgent 将这些问题拆成一套可落地的工程方案：
 |---|---|
 | Agent | LangGraph 循环编排、自动工具选择、最大步数、超时重试、结果核验、金融护栏、Checkpointer |
 | 工具 | **8 个**类型化工具：现价、历史行情、技术指标、新闻、预测、持仓、回测、知识库 |
-| 产品 | Dashboard、Market Analysis、Agent Chat、Forecast、Backtest、Portfolio、News、Knowledge、Reports、Settings |
+| 产品 | Dashboard、Market Analysis、Agent Chat、Forecast、Backtest、Portfolio、News、Knowledge、Reports、Research Tasks、Settings |
 | API | **49 个** FastAPI 路由，覆盖认证、会话、市场、Agent、资产与知识库 |
 | 质量 | **55 条**离线评测样例、**29 个**后端/前端测试用例、Playwright E2E、GitHub Actions |
 | 交付 | Python 3.12、Node.js 22、PostgreSQL 16 + pgvector、Docker Compose |

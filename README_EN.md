@@ -139,6 +139,8 @@ See the [architecture deep dive](docs/architecture.md) for the Agent state graph
 
 ## Product Roadmap
 
+The latest iteration connects dashboard/news research starters, budgeted Agent runs, tool evidence, persistent task history, and authenticated report previews/downloads. It also fixes ledger reconciliation, forecast-horizon evaluation, stale system context, and avoidable SSE tail waiting. See the [iteration notes](docs/PRODUCT_ITERATION.md) (Chinese) for rationale, regression evidence, limitations, and interview talking points. Scheduled monitoring and durable offline queues remain planned, not shipped.
+
 Upcoming work focuses on verifiable results, connected research workflows, structured outputs, task history, mobile usability, production retrieval, and ongoing monitoring. See the [product roadmap](ROADMAP.md) for planned milestones and acceptance goals. Planned features are not claims of current functionality.
 
 ## License

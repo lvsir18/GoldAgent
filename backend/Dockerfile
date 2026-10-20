@@ -6,8 +6,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 RUN addgroup --system goldagent && adduser --system --ingroup goldagent goldagent
 
-COPY pyproject.toml README.md requirements.lock ./
+COPY requirements.lock ./
 RUN pip install --no-cache-dir --requirement requirements.lock
+COPY pyproject.toml README.md ./
 COPY src ./src
 COPY backend ./backend
 COPY main.py run_backend.py config.yaml alembic.ini ./

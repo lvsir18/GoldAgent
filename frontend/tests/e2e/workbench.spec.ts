@@ -42,13 +42,13 @@ test.beforeEach(async ({ page }) => mockApi(page));
 test("dashboard and core workbenches complete their primary flows", async ({ page }, testInfo) => {
   await page.goto("/dashboard");
   await expect(page.getByRole("heading", { name: "黄金市场仪表盘" })).toBeVisible();
-  await expect(page.getByText("¥525.00/g")).toBeVisible();
+  await expect(page.getByText("¥525.00/g", { exact:true })).toBeVisible();
   await page.screenshot({path:testInfo.outputPath("dashboard.png"),fullPage:true});
 
   await page.goto("/chat");
   await page.getByRole("button", { name: "新会话", exact:true }).click();
   await page.getByPlaceholder("询问行情、新闻、预测、持仓或回测…").fill("分析黄金");
-  await page.getByRole("button", { name: "发送" }).click();
+  await page.getByRole("button", { name: "发送", exact:true }).click();
   await expect(page.getByText("测试回答")).toBeVisible();
   await page.screenshot({path:testInfo.outputPath("chat.png"),fullPage:true});
 
