@@ -46,3 +46,11 @@ async def delete_document(document_id: str, request: Request, user_id: str = Dep
 async def search(body: SearchRequest, request: Request, user_id: str = Depends(get_current_user_id)):
     items = await request.app.state.knowledge.search(user_id, body.query, body.top_k, body.document_id)
     return {"success": True, "data": items, "meta": {"count": len(items)}}
+
+
+@router.get("/chunks/{chunk_id}")
+async def get_chunk(chunk_id: str, request: Request, user_id: str = Depends(get_current_user_id)):
+    item = await request.app.state.knowledge.get_chunk(user_id, chunk_id)
+    if item is None:
+        raise HTTPException(404, "Knowledge chunk not found")
+    return {"success": True, "data": item, "meta": {}}

@@ -19,3 +19,8 @@ def test_guardrail_removes_certainty_and_discloses_derived_data():
     assert "不构成投资建议" in answer
     assert "derived" in answer
     assert flags
+
+
+def test_negated_full_position_warning_is_not_misread_as_advice():
+    _, flags = apply_financial_guardrail("不建议满仓，避免全部资金买入黄金。", None, False)
+    assert "missing portfolio context" not in flags

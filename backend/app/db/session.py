@@ -51,7 +51,8 @@ class Database:
                 .where(models.AgentRun.status == "running")
                 .values(status="failed", error="Backend restarted before the Agent run completed")
             )
-            return int(result.rowcount or 0)
+            backtests = await session.execute(update(models.BacktestRecord).where(models.BacktestRecord.status.in_(["queued", "running"])).values(status="failed", error="Backend restarted before the backtest completed; run again"))
+            return int(result.rowcount or 0) + int(backtests.rowcount or 0)
 
     async def dispose(self) -> None:
         await self.engine.dispose()

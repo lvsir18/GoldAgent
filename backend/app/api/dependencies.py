@@ -16,6 +16,9 @@ def get_database(request: Request) -> Database:
 
 
 def get_current_user_id(request: Request) -> str:
+    if request.headers.get("Authorization") and not getattr(request.state, "user_id", None):
+        from fastapi import HTTPException
+        raise HTTPException(status_code=401, detail="Invalid or expired access token")
     user_id = getattr(request.state, "user_id", None)
     if user_id:
         return user_id

@@ -1,3 +1,4 @@
+import asyncio
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 
@@ -18,8 +19,7 @@ async def create_forecast(
     user_id: str = Depends(get_current_user_id),
 ):
     source = await services.market.history_frame(body.symbol, "CN", "3y")
-    result = services.forecast.forecast(source.frame, source.metadata, body)
-    result.metrics = services.forecast.evaluate(source.frame["close"].dropna().to_numpy(), body.model)
+    result = await asyncio.to_thread(services.forecast.evaluated_forecast, source.frame, source.metadata, body)
     payload = result.model_dump(mode="json")
     async with database.session() as session:
         session.add(ForecastRecord(id=result.id, user_id=user_id, request=body.model_dump(mode="json"), result=payload))

@@ -35,7 +35,8 @@ def apply_financial_guardrail(answer: str, verification: dict[str, Any] | None, 
         if re.search(pattern, cleaned, flags=re.IGNORECASE):
             cleaned = re.sub(pattern, "存在不确定性", cleaned, flags=re.IGNORECASE)
             flags.append("removed_guaranteed-return language")
-    if not has_portfolio and re.search(r"(?:满仓|全部资金|精确仓位|仓位\s*100%)", cleaned):
+    position_advice = re.sub(r"(?:不建议|不要|避免|切勿|不应|禁止)\s*(?:使用|投入|配置|买入)?\s*(?:满仓|全部资金|精确仓位|仓位\s*100%)", "", cleaned)
+    if not has_portfolio and re.search(r"(?:满仓|全部资金|精确仓位|仓位\s*100%)", position_advice):
         cleaned += "\n\n由于缺少完整持仓和风险信息，以上仓位描述不能作为精确执行指令。"
         flags.append("missing portfolio context")
     issues = (verification or {}).get("issues", [])

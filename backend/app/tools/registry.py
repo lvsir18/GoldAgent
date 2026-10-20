@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from typing import Any, Awaitable, Callable
 
 from langchain_core.tools import BaseTool, StructuredTool
@@ -42,8 +43,17 @@ class ToolRegistry:
 
 
 def _bounded(fn: Callable[..., Awaitable[Any]], timeout_seconds: int):
+    # Registry lifetime is one run and one tenant, not a global/private-data cache.
+    pending: dict[str, asyncio.Task] = {}
     async def invoke(**kwargs):
-        return await asyncio.wait_for(fn(**kwargs), timeout=timeout_seconds)
+        key = json.dumps(kwargs, sort_keys=True, ensure_ascii=False, default=str)
+        if key not in pending:
+            pending[key] = asyncio.create_task(asyncio.wait_for(fn(**kwargs), timeout=timeout_seconds))
+        try:
+            return await pending[key]
+        except BaseException:
+            pending.pop(key, None)
+            raise
 
     return invoke
 
@@ -86,7 +96,7 @@ def build_tool_registry(
         """Run a baseline gold forecast clearly labelled as a model estimate."""
         provider_frame = await services.market.history_frame(symbol, market, period)
         request = ForecastRequest(symbol=symbol, horizon=horizon, model=model, lookback=lookback)
-        result = services.forecast.forecast(provider_frame.frame, provider_frame.metadata, request)
+        result = await asyncio.to_thread(services.forecast.evaluated_forecast, provider_frame.frame, provider_frame.metadata, request)
         return result.model_dump(mode="json")
 
     async def analyze_portfolio(
@@ -121,7 +131,8 @@ def build_tool_registry(
             transaction_cost_rate=transaction_cost_rate,
             parameters={"short_window": short_window, "long_window": long_window},
         )
-        return services.backtest.run(source.frame, request).model_dump(mode="json")
+        result = await asyncio.to_thread(services.backtest.run, source.frame, request)
+        return result.model_dump(mode="json")
 
     specs = [
         ("get_gold_spot_price", get_gold_spot_price, MarketQuery),

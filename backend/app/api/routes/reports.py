@@ -5,7 +5,7 @@ from sqlalchemy import select
 
 from ..dependencies import get_current_user_id, get_database, get_services
 from ...core.container import ServiceContainer
-from ...db.models import ReportRecord
+from ...db.models import AgentRun, ReportRecord
 from ...db.session import Database
 
 router = APIRouter(prefix="/reports", tags=["reports"])
@@ -15,6 +15,7 @@ class ReportCreate(BaseModel):
     report_type: str = "analysis"
     title: str = Field(min_length=1, max_length=255)
     payload: dict = Field(default_factory=dict)
+    run_id: str | None = None
 
 
 def dump(item, content: bool = False):
@@ -32,9 +33,21 @@ async def list_reports(database: Database = Depends(get_database), user_id: str 
 
 @router.post("")
 async def create_report(body: ReportCreate, database: Database = Depends(get_database), services: ServiceContainer = Depends(get_services), user_id: str = Depends(get_current_user_id)):
-    content = services.reports.render_markdown(body.report_type, body.title, body.payload)
+    payload = dict(body.payload)
+    if body.run_id:
+        async with database.session() as session:
+            run = await session.get(AgentRun, body.run_id)
+            if not run or run.user_id != user_id:
+                raise HTTPException(404, "Agent run not found")
+            if run.status != "completed":
+                raise HTTPException(409, "Only completed research can be saved as a report")
+            payload = {"run_id": run.id, "session_id": run.session_id, **run.state}
+    elif not payload:
+        snapshot = await services.market.summary()
+        payload = {"market_snapshot": snapshot.model_dump(mode="json"), "method": "Deterministic market snapshot; not an AI research report."}
+    content = services.reports.render_markdown(body.report_type, body.title, payload)
     async with database.session() as session:
-        item = ReportRecord(user_id=user_id, report_type=body.report_type, title=body.title, content=content, metadata_json=body.payload)
+        item = ReportRecord(user_id=user_id, report_type=body.report_type, title=body.title, content=content, metadata_json=payload)
         session.add(item); await session.flush()
         return {"success": True, "data": dump(item, True), "meta": {}}
 

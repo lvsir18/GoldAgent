@@ -1,6 +1,7 @@
 """Async OpenAI-compatible embedding adapter."""
 
 import httpx
+import math
 
 from src.errors import ExternalProviderError
 
@@ -21,4 +22,6 @@ class OpenAICompatibleEmbeddingProvider:
         vectors = [item["embedding"] for item in items]
         if len(vectors) != len(texts):
             raise ExternalProviderError("embedding", "Embedding result count mismatch")
+        if any(len(vector) != self.dimensions or not all(math.isfinite(v) for v in vector) for vector in vectors):
+            raise ExternalProviderError("embedding", "Embedding dimensions or finite-value validation failed")
         return vectors

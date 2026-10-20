@@ -62,8 +62,7 @@ class GoldAgentRuntime:
         system_prompt = build_system_prompt(
             state.get("user_preferences"), state.get("risk_profile"), state.get("portfolio_context"),
         )
-        if not messages or not isinstance(messages[0], SystemMessage):
-            messages = [SystemMessage(content=system_prompt), *messages]
+        messages = [SystemMessage(content=system_prompt), *[m for m in messages if not isinstance(m, SystemMessage)]]
         return {
             "messages": messages,
             "run_id": state.get("run_id") or str(uuid.uuid4()),
@@ -76,7 +75,7 @@ class GoldAgentRuntime:
 
     async def _supervisor(self, state: GoldAgentState) -> dict[str, Any]:
         if state.get("current_step", 0) >= state.get("max_steps", self.settings.agent.max_steps):
-            return {"messages": [AIMessage(content="已达到最大工具执行步数，将根据现有结果作答。")], "status": "max_steps"}
+            return {"messages": [*state["messages"], AIMessage(content="已达到最大工具执行步数，当前研究未完整完成，请缩小问题范围后重试。")], "status": "max_steps"}
         step = state.get("current_step", 0) + 1
         await self._emit("run_progress", stage="llm", step=step, message="模型正在规划或生成分析…")
         response = await self.gateway.chat(state["messages"], self.tools.tools)
@@ -86,8 +85,9 @@ class GoldAgentRuntime:
             for call in response.tool_calls
         ]
         return {
-            "messages": [AIMessage(content=response.content, tool_calls=tool_calls)],
+            "messages": [*state["messages"], AIMessage(content=response.content, tool_calls=tool_calls)],
             "current_step": state.get("current_step", 0) + 1,
+            "usage": {"prompt_tokens": state.get("usage", {}).get("prompt_tokens", 0) + (response.prompt_tokens or 0), "completion_tokens": state.get("usage", {}).get("completion_tokens", 0) + (response.completion_tokens or 0)},
         }
 
     def _after_supervisor(self, state: GoldAgentState) -> str:
@@ -98,35 +98,44 @@ class GoldAgentRuntime:
 
     async def _execute_tools(self, state: GoldAgentState) -> dict[str, Any]:
         last = state["messages"][-1]
-        messages, observations = [], list(state.get("tool_results", []))
-        for call in getattr(last, "tool_calls", []):
-            name, args, call_id = call["name"], call.get("args", {}), call.get("id") or str(uuid.uuid4())
-            started = time.perf_counter()
-            await self._emit("tool_started", tool=name, message=f"正在执行工具：{name}")
-            try:
-                output = None
-                for attempt in range(self.settings.agent.max_tool_retries + 1):
-                    try:
-                        output = await self.tools.get(name).ainvoke(args)
-                        break
-                    except Exception:
-                        if attempt >= self.settings.agent.max_tool_retries:
-                            raise
-                observations.append({"tool": name, "arguments": args, "output": output, "error": None, "duration_ms": (time.perf_counter()-started)*1000})
-                content = json.dumps(output, ensure_ascii=False, default=str)
-            except Exception as exc:
-                error = f"{type(exc).__name__}: {exc}"
-                observations.append({"tool": name, "arguments": args, "output": None, "error": error, "duration_ms": (time.perf_counter()-started)*1000 if 'started' in locals() else None})
-                content = json.dumps({"success": False, "error": error}, ensure_ascii=False)
-            await self._emit(
-                "tool_finished",
-                tool=name,
-                success=not bool(observations[-1].get("error")),
-                duration_ms=observations[-1].get("duration_ms"),
-                message=f"工具 {name} 已完成" if not observations[-1].get("error") else f"工具 {name} 执行失败",
-            )
-            messages.append(ToolMessage(content=content, tool_call_id=call_id, name=name))
-        return {"messages": messages, "tool_results": observations}
+        readonly = {"get_gold_spot_price", "get_market_history", "calculate_technical_indicators", "search_financial_news", "forecast_gold_price", "analyze_portfolio", "run_backtest", "retrieve_financial_knowledge"}
+        calls = getattr(last, "tool_calls", [])
+        # Unknown extensions are executed serially until explicitly classified.
+        semaphore = asyncio.Semaphore(3 if all(c["name"] in readonly for c in calls) else 1)
+
+        async def execute(call):
+            async with semaphore:
+                return await self._execute_one(call)
+
+        results = await asyncio.gather(*(execute(call) for call in calls))
+        return {"messages": [*state["messages"], *[r[0] for r in results]],
+            "tool_results": [*state.get("tool_results", []), *[r[1] for r in results]]}
+
+    async def _execute_one(self, call):
+        name, args, call_id = call["name"], call.get("args", {}), call.get("id") or str(uuid.uuid4())
+        started = time.perf_counter()
+        await self._emit("tool_started", tool=name, message=f"正在执行工具：{name}")
+        try:
+            output = None
+            for attempt in range(self.settings.agent.max_tool_retries + 1):
+                try:
+                    output = await self.tools.get(name).ainvoke(args)
+                    break
+                except Exception:
+                    if attempt >= self.settings.agent.max_tool_retries:
+                        raise
+            observation = {"tool": name, "arguments": args, "output": output, "error": None, "duration_ms": (time.perf_counter()-started)*1000}
+            content = json.dumps(output, ensure_ascii=False, default=str)
+        except Exception as exc:
+            error = f"{type(exc).__name__}: {exc}"
+            observation = {"tool": name, "arguments": args, "output": None, "error": error, "duration_ms": (time.perf_counter()-started)*1000}
+            content = json.dumps({"success": False, "error": error}, ensure_ascii=False)
+        await self._emit(
+            "tool_finished", tool=name, success=not bool(observation.get("error")),
+            duration_ms=observation.get("duration_ms"),
+            message=f"工具 {name} 已完成" if not observation.get("error") else f"工具 {name} 执行失败",
+        )
+        return ToolMessage(content=content, tool_call_id=call_id, name=name), observation
 
     async def _verify_results(self, state: GoldAgentState) -> dict[str, Any]:
         await self._emit("run_progress", stage="verify", message="正在核验数据来源和工具结果…")
@@ -146,8 +155,8 @@ class GoldAgentRuntime:
         verification["guardrail_flags"] = flags
         return {"final_answer": answer, "verification_result": verification}
 
-    async def _save_memory(self, _: GoldAgentState) -> dict[str, Any]:
-        return {"status": "completed"}
+    async def _save_memory(self, state: GoldAgentState) -> dict[str, Any]:
+        return {"status": "max_steps" if state.get("status") == "max_steps" else "completed"}
 
     async def invoke(
         self, *, user_message: str, user_id: str, session_id: str,
@@ -155,18 +164,25 @@ class GoldAgentRuntime:
         portfolio_context: dict[str, Any] | None = None,
         user_preferences: dict[str, Any] | None = None,
         risk_profile: dict[str, Any] | None = None,
+        history: list[dict[str, str]] | None = None,
+        max_steps: int | None = None,
     ) -> GoldAgentState:
         resolved_run_id = run_id or str(uuid.uuid4())
+        config = {"configurable": {"thread_id": f"{user_id}:{session_id}"}}
+        if history is None:
+            previous = await self.graph.aget_state(config)
+            messages = list(previous.values.get("messages", [])) if previous.values else []
+        else:
+            messages = [HumanMessage(content=m["content"]) if m["role"] == "user" else AIMessage(content=m["content"]) for m in history[-30:] if m["role"] in {"user", "assistant"}]
         state: GoldAgentState = {
-            "messages": [HumanMessage(content=user_message)], "user_id": user_id,
+            "messages": [*messages, HumanMessage(content=user_message)], "user_id": user_id,
             "session_id": session_id, "run_id": resolved_run_id,
-            "tool_results": [], "current_step": 0, "max_steps": self.settings.agent.max_steps,
-            "retry_count": 0, "status": "created", "portfolio_context": portfolio_context,
+            "tool_results": [], "current_step": 0, "max_steps": max_steps or self.settings.agent.max_steps,
+            "retry_count": 0, "status": "created", "usage": {}, "portfolio_context": portfolio_context,
             "user_preferences": user_preferences, "risk_profile": risk_profile,
         }
-        # A namespace per run prevents a cancelled run from contaminating the next
-        # request while retaining durable PostgreSQL checkpoints for diagnostics.
-        config = {"configurable": {"thread_id": session_id, "checkpoint_ns": resolved_run_id}}
+        # API calls supply tenant-scoped committed conversation history explicitly;
+        # current preferences and holdings replace, rather than append to, context.
         self._progress_callback = on_event
         try:
             async with asyncio.timeout(self.settings.agent.run_timeout_seconds):

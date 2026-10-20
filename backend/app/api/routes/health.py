@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Request
 from sqlalchemy import text
+from fastapi.responses import JSONResponse
 
 router = APIRouter(tags=["health"])
 
@@ -15,7 +16,7 @@ async def ready(request: Request):
         "api": True,
         "database": False,
         "llm_config": bool(request.app.state.settings.llm_api_key()),
-        "market_provider": True,
+        "market_provider": "not_probed",
         "checkpointer": hasattr(request.app.state, "checkpointer"),
     }
     try:
@@ -31,5 +32,5 @@ async def ready(request: Request):
         pass
     vector_ready = checks.get("vector_extension") in {True, "demo_sqlite"}
     llm_ready = checks["llm_config"] or request.app.state.settings.security.demo_mode
-    status = "ready" if checks["database"] and checks["market_provider"] and checks["checkpointer"] and vector_ready and llm_ready else "not_ready"
-    return {"status": status, "checks": checks}
+    status = "ready" if checks["database"] and checks["checkpointer"] and vector_ready and llm_ready else "not_ready"
+    return JSONResponse({"status": status, "checks": checks, "scope": "Local dependencies and configuration only. External providers are not probed and no paid LLM request is made."}, status_code=200 if status == "ready" else 503)

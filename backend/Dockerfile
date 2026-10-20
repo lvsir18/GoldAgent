@@ -6,11 +6,13 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 RUN addgroup --system goldagent && adduser --system --ingroup goldagent goldagent
 
-COPY pyproject.toml README.md ./
+COPY pyproject.toml README.md requirements.lock ./
+RUN pip install --no-cache-dir --requirement requirements.lock
 COPY src ./src
 COPY backend ./backend
 COPY main.py run_backend.py config.yaml alembic.ini ./
-RUN pip install --no-cache-dir .
+RUN pip install --no-cache-dir --no-deps .
+RUN pip check
 
 RUN mkdir -p /app/data /app/logs /app/reports /app/.cache/numba && chown -R goldagent:goldagent /app
 USER goldagent

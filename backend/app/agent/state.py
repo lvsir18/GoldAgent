@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-from typing import Annotated, Any, TypedDict
+from typing import Any, TypedDict
 
 from langchain_core.messages import BaseMessage
-from langgraph.graph.message import add_messages
 
 
 class GoldAgentState(TypedDict, total=False):
-    messages: Annotated[list[BaseMessage], add_messages]
+    messages: list[BaseMessage]
     user_id: str
     session_id: str
     run_id: str
@@ -32,3 +31,4 @@ class GoldAgentState(TypedDict, total=False):
     verification_result: dict[str, Any] | None
     final_answer: str | None
     status: str
+    usage: dict[str, int]

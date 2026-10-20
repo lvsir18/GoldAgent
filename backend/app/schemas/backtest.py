@@ -22,6 +22,8 @@ class BacktestTrade(BaseModel):
     quantity: float
     cost: float
     pnl: float | None = None
+    cash_after: float = 0
+    position_after: float = 0
 
 
 class BacktestMetrics(BaseModel):
@@ -45,4 +47,7 @@ class BacktestResult(BaseModel):
     equity_curve: list[dict[str, float | str]]
     drawdown_curve: list[dict[str, float | str]]
     trades: list[BacktestTrade]
+    benchmark_curve: list[dict[str, float | str]] = Field(default_factory=list)
+    ledger: dict[str, float] = Field(default_factory=dict)
+    execution: str = "Previous close signal; next open execution; fees on both sides; no forced final sale. AU0 is reference continuous data, not a tradable contract."
 

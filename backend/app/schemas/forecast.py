@@ -16,6 +16,13 @@ class ForecastRequest(BaseModel):
 
 
 class ForecastMetrics(BaseModel):
+    horizon: int = 1
+    sample_count: int = 0
+    min_train: int = 30
+    baseline_mae: float | None = None
+    baseline_rmse: float | None = None
+    evaluation_start: str | None = None
+    evaluation_end: str | None = None
     mae: float | None = None
     rmse: float | None = None
     mape: float | None = None

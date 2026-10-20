@@ -1,4 +1,5 @@
 from __future__ import annotations
+import asyncio
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy import select
@@ -21,13 +22,17 @@ async def execute_backtest(record_id: str, user_id: str, database: Database, ser
         request = BacktestRequest.model_validate(record.request)
     try:
         source = await services.market.history_frame("AU0", "CN", "3y")
-        result = services.backtest.run(source.frame, request)
+        result = await asyncio.to_thread(services.backtest.run, source.frame, request)
         async with database.session() as session:
             record = await session.get(BacktestRecord, record_id)
+            if record is None:
+                return
             record.status, record.result = "completed", result.model_dump(mode="json")
     except Exception as exc:
         async with database.session() as session:
             record = await session.get(BacktestRecord, record_id)
+            if record is None:
+                return
             record.status, record.error = "failed", f"{type(exc).__name__}: {exc}"
 
 

@@ -64,4 +64,4 @@ async def test_agent_stops_at_max_steps_and_stream_starts_immediately():
     assert first["event"] == "run_started"
     remaining = [event async for event in iterator]
     assert remaining[-1]["event"] == "run_finished"
-    assert remaining[-1]["status"] == "completed"
+    assert remaining[-1]["status"] == "max_steps"

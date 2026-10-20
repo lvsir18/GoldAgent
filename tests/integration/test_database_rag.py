@@ -19,6 +19,10 @@ async def test_sqlite_database_and_tenant_scoped_rag(tmp_path):
         results = await service.search(DEMO_USER_ID, "实际利率", top_k=3)
         assert document.status == "ready"
         assert results and results[0]["document_id"] == document.id
+        assert results[0]["metadata"]["page"] == 1
+        assert await service.search(DEMO_USER_ID, "巧克力曲奇做法") == []
+        assert await service.get_chunk("other-tenant", results[0]["chunk_id"]) is None
+        assert (await service.get_chunk(DEMO_USER_ID, results[0]["chunk_id"]))["document_id"] == document.id
         assert await service.search("other-tenant", "实际利率") == []
         assert await service.delete_document(DEMO_USER_ID, document.id) is True
         assert await service.get_document(DEMO_USER_ID, document.id) is None

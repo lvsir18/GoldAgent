@@ -3,8 +3,9 @@ from __future__ import annotations
 import asyncio
 import json
 import uuid
+import time
 from contextlib import suppress
-from typing import Any, Awaitable, Callable
+from typing import Any, Awaitable, Callable, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
@@ -13,7 +14,8 @@ from sqlalchemy import select
 
 from ..dependencies import get_current_user_id, get_database
 from ...agent.graph import build_agent_runtime
-from ...db.models import PortfolioRecord, RiskProfile, ToolCallRecord, UserProfile
+from ...db.models import AgentRun, PortfolioRecord, RiskProfile, ToolCallRecord, UserProfile
+from ...services.research import research_evidence
 from ...db.repositories import AgentRunRepository, SessionRepository
 from ...db.session import Database
 from ...tools.registry import build_tool_registry
@@ -24,6 +26,7 @@ router = APIRouter(tags=["agent"])
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=10000)
     session_id: str | None = None
+    mode: Literal["quick", "deep"] = "quick"
 
 
 def session_title_from_message(message: str, limit: int = 36) -> str:
@@ -85,20 +88,27 @@ async def _run(
     run_id = run_id or str(uuid.uuid4())
     async with database.session() as session:
         sessions = SessionRepository(session, user_id)
-        if not await sessions.messages(session_item.id):
+        previous = await sessions.messages(session_item.id)
+        history = [{"role": m.role, "content": m.content} for m in previous]
+        if not previous:
             await sessions.rename(session_item.id, session_title_from_message(body.message))
         await sessions.add_message(session_item.id, "user", body.message)
-        await AgentRunRepository(session, user_id).create(session_item.id, run_id)
-    portfolio_context, user_preferences, risk_profile = await _load_user_context(database, user_id)
-    runtime = build_agent_runtime(
-        request.app.state.settings,
-        tools=build_tool_registry(
-            request.app.state.services, request.app.state.knowledge, user_id,
-            portfolio_context=portfolio_context, risk_profile=risk_profile,
-        ),
-        checkpointer=request.app.state.checkpointer,
-    )
+        run = await AgentRunRepository(session, user_id).create(session_item.id, run_id)
+        run.state = {"question": body.message, "mode": body.mode}
     try:
+        portfolio_context, user_preferences, risk_profile = await _load_user_context(database, user_id)
+        settings = request.app.state.settings
+        if body.mode == "quick":
+            settings = settings.model_copy(update={"agent": settings.agent.model_copy(update={"max_steps": min(settings.agent.max_steps, 4), "max_tokens": min(settings.agent.max_tokens, 1600), "run_timeout_seconds": min(settings.agent.run_timeout_seconds, 90)})})
+        started = time.perf_counter()
+        runtime = build_agent_runtime(
+            settings,
+            tools=build_tool_registry(
+                request.app.state.services, request.app.state.knowledge, user_id,
+                portfolio_context=portfolio_context, risk_profile=risk_profile,
+            ),
+            checkpointer=request.app.state.checkpointer,
+        )
         state = await runtime.invoke(
             user_message=body.message,
             user_id=user_id,
@@ -108,6 +118,8 @@ async def _run(
             portfolio_context=portfolio_context,
             user_preferences=user_preferences,
             risk_profile=risk_profile,
+            history=history,
+            max_steps=settings.agent.max_steps,
         )
     except asyncio.CancelledError as exc:
         await asyncio.shield(_save_run_failure(database, user_id, run_id, exc, "cancelled"))
@@ -119,6 +131,10 @@ async def _run(
         "run_id": run_id, "session_id": session_item.id, "status": state.get("status"),
         "final_answer": state.get("final_answer"), "verification": state.get("verification_result"),
         "tool_results": state.get("tool_results", []),
+        "mode": body.mode,
+        "question": body.message,
+        "evidence": research_evidence(state.get("tool_results", [])),
+        "metrics": {"model": settings.agent.model, "provider": settings.agent.provider, "llm_calls": state.get("current_step", 0), "tool_calls": len(state.get("tool_results", [])), "usage": state.get("usage", {}), "duration_ms": round((time.perf_counter() - started) * 1000), "budget": {"max_steps": settings.agent.max_steps, "max_tokens_per_response": settings.agent.max_tokens, "timeout_seconds": settings.agent.run_timeout_seconds}},
     }
     async with database.session() as session:
         sessions = SessionRepository(session, user_id)
@@ -155,8 +171,19 @@ async def chat_stream(request: Request, body: ChatRequest, database: Database = 
         try:
             while not task.done() or not queue.empty():
                 try:
-                    event, payload = await asyncio.wait_for(queue.get(), timeout=10)
-                    yield encode(event, payload)
+                    pending = asyncio.create_task(queue.get())
+                    try:
+                        done, _ = await asyncio.wait({task, pending}, timeout=10, return_when=asyncio.FIRST_COMPLETED)
+                        if pending in done:
+                            event, payload = pending.result()
+                            yield encode(event, payload)
+                        elif not done:
+                            raise TimeoutError
+                    finally:
+                        if not pending.done():
+                            pending.cancel()
+                            with suppress(asyncio.CancelledError):
+                                await pending
                 except TimeoutError:
                     if await request.is_disconnected():
                         task.cancel()
@@ -174,7 +201,7 @@ async def chat_stream(request: Request, body: ChatRequest, database: Database = 
                 yield encode("answer_delta", {"run_id": run_id, "delta": answer[start:start + 120]})
             yield encode(
                 "run_finished",
-                {"run_id": run_id, "session_id": result["session_id"], "status": result["status"]},
+                {"run_id": run_id, "session_id": result["session_id"], "status": result["status"], "evidence": result.get("evidence", {})},
             )
         except asyncio.CancelledError:
             raise
@@ -189,6 +216,27 @@ async def chat_stream(request: Request, body: ChatRequest, database: Database = 
                 with suppress(asyncio.CancelledError):
                     await task
     return StreamingResponse(events(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
+@router.get("/agent/runs")
+async def list_runs(database: Database = Depends(get_database), user_id: str = Depends(get_current_user_id)):
+    async with database.session() as session:
+        items = list((await session.scalars(select(AgentRun).where(AgentRun.user_id == user_id).order_by(AgentRun.created_at.desc()).limit(100))).all())
+    return {"success": True, "data": [{"id": i.id, "session_id": i.session_id, "status": i.status, "question": (i.state or {}).get("question", ""), "error": i.error, "created_at": i.created_at.isoformat()} for i in items], "meta": {}}
+
+
+class FeedbackRequest(BaseModel):
+    value: Literal["helpful", "unhelpful"]
+
+
+@router.post("/agent/runs/{run_id}/feedback")
+async def run_feedback(run_id: str, body: FeedbackRequest, database: Database = Depends(get_database), user_id: str = Depends(get_current_user_id)):
+    async with database.session() as session:
+        run = await AgentRunRepository(session, user_id).get(run_id)
+        if not run:
+            raise HTTPException(404, "Agent run not found")
+        run.state = {**(run.state or {}), "feedback": body.value}
+    return {"success": True, "data": {"saved": True}, "meta": {}}
 
 
 @router.get("/agent/runs/{run_id}")
