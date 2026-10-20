@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { usePathname } from "next/navigation";
-import { BarChart3, Bot, Brain, FileText, FlaskConical, Gauge, Landmark, Newspaper, Settings, TrendingUp } from "lucide-react";
+import { BarChart3, Bot, Brain, FileText, FlaskConical, Gauge, Landmark, Newspaper, Settings, TrendingUp, ListChecks, Menu, X } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useLanguage } from "@/i18n/language";
 import { authApi } from "@/services/api/auth";
@@ -19,11 +20,14 @@ const navigation = [
   ["/news", "市场新闻", "News", Newspaper],
   ["/reports", "分析报告", "Reports", FileText],
   ["/knowledge", "知识库", "Knowledge", Brain],
+  ["/tasks", "研究任务", "Research tasks", ListChecks],
   ["/settings", "设置", "Settings", Settings],
 ] as const;
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const [more, setMore] = useState(false);
+  const queryClient = useQueryClient();
   const isChat = pathname.startsWith("/chat");
   const { locale, setLocale, text } = useLanguage();
   const { tokens, hydrated, hydrate, setTokens } = useAuthStore();
@@ -33,6 +37,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const logout = async () => {
     if (tokens?.refresh_token) await authApi.logout(tokens.refresh_token).catch(() => undefined);
     setTokens(null);
+    queryClient.clear();
+    window.location.assign("/dashboard");
   };
 
   return (
@@ -92,7 +98,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </header>
         <main className={cn(
           "min-w-0 p-4 pb-24 md:p-7",
-          isChat && "h-[calc(100dvh-3.5rem)] overflow-hidden pb-4 md:flex-1 md:p-4",
+          isChat && "h-[calc(100dvh-8rem)] overflow-hidden pb-4 md:h-auto md:flex-1 md:p-4",
           !isChat && "md:flex-1 md:overflow-y-auto",
         )}>
           {children}
@@ -100,16 +106,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </div>
 
       <nav className="fixed inset-x-0 bottom-0 z-30 flex overflow-x-auto border-t border-line bg-surface p-2 md:hidden">
-        {navigation.slice(0, 6).map(([href, zh, en, Icon]) => (
+        {[navigation[0], navigation[2], navigation[5], navigation[6]].map(([href, zh, en, Icon]) => (
           <Link
             key={href}
             href={href}
-            className={cn("min-w-20 flex-1 rounded-lg p-2 text-center text-[11px] text-muted", pathname.startsWith(href) && "text-gold")}
+            className={cn("min-w-0 flex-1 rounded-lg p-2 text-center text-[11px] text-muted", pathname.startsWith(href) && "text-gold")}
           >
             <Icon className="mx-auto mb-1" size={17}/>{text(zh, en)}
           </Link>
         ))}
+        <button aria-expanded={more} onClick={() => setMore(v => !v)} className="flex-1 rounded-lg p-2 text-center text-[11px] text-muted"><Menu className="mx-auto mb-1" size={17}/>{text("更多", "More")}</button>
       </nav>
+      {more && <div role="dialog" aria-modal="true" aria-label={text("全部功能", "All features")} className="fixed inset-0 z-40 flex items-end bg-black/70 md:hidden" onClick={() => setMore(false)}><div className="w-full rounded-t-2xl border border-line bg-surface p-5 pb-8" onClick={e => e.stopPropagation()}><div className="mb-4 flex justify-between"><h2>{text("全部功能", "All features")}</h2><button onClick={() => setMore(false)} aria-label={text("关闭", "Close")}><X size={20}/></button></div><div className="grid grid-cols-3 gap-3">{navigation.map(([href,zh,en,Icon]) => <Link key={href} href={href} onClick={() => setMore(false)} className="rounded-lg border border-line p-3 text-center text-xs"><Icon className="mx-auto mb-2 text-gold" size={20}/>{text(zh,en)}</Link>)}</div></div></div>}
     </div>
   );
 }

@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { authApi } from "@/services/api/auth";
 import { useAuthStore } from "@/stores/auth";
@@ -9,6 +10,7 @@ import { useLanguage } from "@/i18n/language";
 
 export default function LoginPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { text } = useLanguage();
   const setTokens = useAuthStore(state => state.setTokens);
   const [email, setEmail] = useState("");
@@ -21,7 +23,7 @@ export default function LoginPage() {
     event.preventDefault(); setBusy(true); setError("");
     try {
       const tokens = await (register ? authApi.register({ email, password }) : authApi.login({ email, password }));
-      setTokens(tokens); router.push("/dashboard");
+      queryClient.clear(); setTokens(tokens); router.push("/dashboard");
     } catch (reason) { setError((reason as Error).message); }
     finally { setBusy(false); }
   };

@@ -1,7 +1,8 @@
 "use client";
 
-import { FormEvent, useState } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { FormEvent, useEffect, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ResultChart } from "@/components/charts/result-chart";
 import { backtestApi } from "@/services/api/domain";
 import { PageHeading } from "@/components/common/page-heading";
 import { useLanguage } from "@/i18n/language";
@@ -35,14 +36,18 @@ export default function BacktestPage() {
   const [id, setId] = useState<string | null>(null);
   const [shortWindow, setShortWindow] = useState(5);
   const [longWindow, setLongWindow] = useState(20);
+  const [costRate, setCostRate] = useState(0.15);
+  const qc = useQueryClient();
+  const history = useQuery({ queryKey: ["backtests"], queryFn: backtestApi.list });
+  useEffect(() => { if (!id && history.data?.length) setId(history.data[0].id); }, [history.data, id]);
   const create = useMutation({
     mutationFn: () => backtestApi.create({
       strategy: "ma_cross",
       initial_capital: 100000,
-      transaction_cost_rate: 0.0015,
+      transaction_cost_rate: costRate / 100,
       parameters: { short_window: shortWindow, long_window: longWindow },
     }),
-    onSuccess: data => setId(data.id),
+    onSuccess: data => { setId(data.id); qc.invalidateQueries({ queryKey: ["backtests"] }); },
   });
   const result = useQuery({
     queryKey: ["backtest", id],
@@ -83,20 +88,24 @@ export default function BacktestPage() {
         <button disabled={create.isPending || shortWindow >= longWindow} className="focus-ring rounded bg-gold px-5 py-2 text-black disabled:opacity-40">
           {create.isPending ? text("正在创建…", "Creating…") : text("运行回测", "Run backtest")}
         </button>
+        <label className="text-sm">{text("单边交易费率（%）", "One-way fee (%)")}<input type="number" min={0} max={10} step={0.01} value={costRate} onChange={e => setCostRate(Number(e.target.value))} className="mt-2 block w-28 rounded border border-line bg-canvas p-2"/></label>
         {shortWindow >= longWindow && <span className="text-sm text-negative">{text("短均线必须小于长均线", "Short MA must be less than long MA")}</span>}
       </form>
+      <label className="my-4 block text-sm">{text("历史回测", "Backtest history")}<select value={id ?? ""} onChange={e => setId(e.target.value)} className="ml-3 max-w-full rounded border border-line bg-surface p-2"><option value="">{text("选择记录", "Select a record")}</option>{history.data?.map(r => <option key={r.id} value={r.id}>{new Date(r.created_at).toLocaleString()} · {text(...(statusLabels[r.status] ?? [r.status,r.status]))}</option>)}</select></label>
 
       {id && <p className="my-4 text-sm text-muted">{text("任务", "Job")} {id} · {text(...(statusLabels[status] ?? [status, status]))}</p>}
-      {(create.error || result.data?.error) && <p className="text-negative">{create.error?.message ?? result.data?.error}</p>}
+      {(create.error || result.error || history.error || result.data?.error) && <p className="text-negative">{create.error?.message ?? result.error?.message ?? history.error?.message ?? result.data?.error}</p>}
 
       {backtest && (
         <div>
+          <p className="mb-4 text-xs leading-6 text-warning">{text("前一日收盘信号，下一日开盘成交；双边计费，期末不强制卖出。AU0 连续合约仅供研究，不代表可直接交易的产品收益。历史旧记录未按新口径重算，请重新运行。", "Previous-close signal, next-open execution, fees on both sides, no forced final sale. AU0 continuous data is a research reference, not tradable product performance. Legacy records are not recalculated; run again.")}</p>
           <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {Object.entries(backtest.metrics).map(([key, value]) => {
               const definition = metricDefinitions[key];
               return <Metric key={key} label={definition ? text(...definition.label) : key} value={formatMetric(key, value)} />;
             })}
           </section>
+          <div className="mt-4 space-y-4"><ResultChart title={text("策略净值与买入持有（元）", "Strategy equity vs buy-and-hold (CNY)")} labels={backtest.equity_curve.map((p:any) => p.timestamp.slice(0,10))} series={[{name:text("策略净值", "Strategy"),color:"#d6aa4b",values:backtest.equity_curve.map((p:any)=>p.value)},...(backtest.benchmark_curve?.length ? [{name:text("买入持有", "Buy-and-hold"),color:"#a8a79f",values:backtest.benchmark_curve.map((p:any)=>p.value)}] : [])]}/><ResultChart title={text("回撤曲线（%）", "Drawdown (%)")} labels={backtest.drawdown_curve.map((p:any)=>p.timestamp.slice(0,10))} series={[{name:text("回撤", "Drawdown"),color:"#c66f6f",values:backtest.drawdown_curve.map((p:any)=>p.value*100)}]}/></div>
           <section className="card mt-4 overflow-x-auto p-4">
             <h2 className="mb-3 font-medium">{text("交易记录", "Trades")}</h2>
             {backtest.trades.length === 0 ? (

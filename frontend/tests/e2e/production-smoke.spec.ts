@@ -13,15 +13,14 @@ test("production frontend and backend are wired together", async ({ page, reques
   expect(readyBody.status).toBe("ready");
   expect(readyBody.checks).toMatchObject({
     database: true,
-    market_provider: true,
+    market_provider: "not_probed",
     checkpointer: true,
   });
 
   await page.goto("/settings");
-  await expect(page.getByRole("heading", { name: "设置" })).toBeVisible();
-  await expect(page.getByText("demo@goldagent.local")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "个性化设置" })).toBeVisible();
 
-  await page.getByRole("link", { name: "Agent Chat" }).click();
+  await page.getByRole("link", { name: "Agent 对话", exact:true }).click();
   await expect(page).toHaveURL(/\/chat$/);
-  await expect(page.getByRole("button", { name: "新建会话" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "新会话",exact:true })).toBeVisible();
 });

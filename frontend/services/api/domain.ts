@@ -1,6 +1,7 @@
 import { apiClient } from "./client";
 
 export const forecastApi = {
+  list: () => apiClient<any[]>("/forecasts"),
   create: (body: { symbol: string; horizon: number; model: string; lookback?: number }) => apiClient<any>("/forecasts", { method: "POST", body: JSON.stringify(body) }),
   get: (id: string) => apiClient<any>(`/forecasts/${id}`),
 };
@@ -16,9 +17,15 @@ export const portfolioApi = {
 };
 export const newsApi = { list: (query: string) => apiClient<any>(`/news?query=${encodeURIComponent(query)}`) };
 export const reportsApi = {
+  get: (id: string) => apiClient<any>(`/reports/${id}`),
   list: () => apiClient<any[]>("/reports"),
   create: (body: Record<string, unknown>) => apiClient<any>("/reports", { method: "POST", body: JSON.stringify(body) }),
   remove: (id: string) => apiClient<any>(`/reports/${id}`, { method: "DELETE" }),
+};
+export const researchApi = {
+  list: () => apiClient<any[]>("/agent/runs"),
+  get: (id: string) => apiClient<any>(`/agent/runs/${id}`),
+  feedback: (id: string, value: "helpful" | "unhelpful") => apiClient(`/agent/runs/${id}/feedback`, { method: "POST", body: JSON.stringify({ value }) }),
 };
 export const userApi = {
   me: () => apiClient<any>("/users/me"),
@@ -26,6 +33,7 @@ export const userApi = {
   updateRisk: (body: Record<string, unknown>) => apiClient<any>("/users/me/risk-profile", { method: "PUT", body: JSON.stringify(body) }),
 };
 export const knowledgeApi = {
+  chunk: (id: string) => apiClient<any>(`/knowledge/chunks/${id}`),
   list: () => apiClient<any[]>("/knowledge/documents"),
   upload: async (file: File) => {
     const form = new FormData(); form.append("file", file);

@@ -14,6 +14,7 @@ export async function POST(request: Request) {
     },
     body: await request.text(),
     cache: "no-store",
+    signal: request.signal,
   });
 
   return new Response(upstream.body, {
