@@ -137,6 +137,10 @@ npm run test:e2e
 
 See the [architecture deep dive](docs/architecture.md) for the Agent state graph, tool-selection mechanism, streaming protocol and persistence boundaries. The [Chinese README](README.md) covers the complete source layout, API surface, design decisions, configuration, MCP and evaluation workflow.
 
+## Product Roadmap
+
+Upcoming work focuses on verifiable results, connected research workflows, structured outputs, task history, mobile usability, production retrieval, and ongoing monitoring. See the [product roadmap](ROADMAP.md) for planned milestones and acceptance goals. Planned features are not claims of current functionality.
+
 ## License
 
 [MIT](LICENSE)

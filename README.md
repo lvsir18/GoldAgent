@@ -316,11 +316,13 @@ python -m evals.runners.compare baseline.json candidate.json
 
 ## Roadmap
 
-- [ ] 增加工具路由评测集，持续优化过度调用和漏调用
-- [ ] 接入生产级 Embedding/Reranker 与 pgvector ANN 索引
-- [ ] 增加 OpenTelemetry Trace 和 Prometheus 指标
-- [ ] 扩展黄金 ETF、宏观指标与多资产相关性工具
-- [ ] 发布在线只读 Demo 和完整产品截图
+- [ ] 完善上线基础、数据口径和可验证结果
+- [ ] 打通今日概览、研究对话、持仓、新闻与报告流程
+- [ ] 增强结构化结果、引用、任务历史和移动端体验
+- [ ] 接入生产级 Embedding/Reranker，完善知识库相关性判断
+- [ ] 支持深入研究、任务中心与持续跟踪
+
+分阶段目标与验收重点见 [`ROADMAP.md`](ROADMAP.md)。
 
 ## 文档
 
