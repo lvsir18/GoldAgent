@@ -184,7 +184,7 @@ class GoldAgentRuntime:
         except Exception as exc:
             error = f"{type(exc).__name__}: {exc}"
             observation = {"tool": name, "arguments": args, "output": None, "error": error, "duration_ms": (time.perf_counter()-started)*1000}
-            content = json.dumps({"success": False, "error": error}, ensure_ascii=False)
+            content = json.dumps({"success": False, "error": "资料暂时获取失败。可检查工具参数后重试；仍失败时说明资料不足，不猜测数据，不输出内部异常。"}, ensure_ascii=False)
         await self._emit(
             "tool_finished", tool=name, success=not bool(observation.get("error")),
             duration_ms=observation.get("duration_ms"),

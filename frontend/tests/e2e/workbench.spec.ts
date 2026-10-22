@@ -56,7 +56,7 @@ test("dashboard and core workbenches complete their primary flows", async ({ pag
   await page.getByRole("button", { name: "运行预测" }).click();
   await expect(page.getByRole("img", { name: "预测路径与价格不变基准" })).toBeVisible();
   await page.reload();
-  await expect(page.getByText("滚动样本", { exact:false })).toContainText("10");
+  await expect(page.getByText("历史检验次数", { exact:false })).toContainText("10");
 
   await page.goto("/backtest");
   await page.getByRole("button", { name: "运行回测" }).click();
@@ -160,4 +160,50 @@ test("a completed chat saves a research report with preview and authenticated do
   await page.getByRole("button",{name:"下载",exact:true}).click();
   expect((await download).suggestedFilename()).toBe("分析黄金.md");
   expect(authenticatedDownload).toBeTruthy();
+});
+
+for (const locale of ["zh", "en"] as const) {
+  test(`every workbench presents product copy, not internal records (${locale})`, async ({ page }, testInfo) => {
+    test.setTimeout(90000);
+    const diagnostic = "ValidationError Traceback INTERNAL_CANARY postgres://private-host";
+    const evidence = {citations:[{title:"黄金研报",chunk_id:"PRIVATE_CHUNK_CANARY",source:"Knowledge Base",page:2}],snapshots:[{tool:"get_market_history",metadata:{source:"AkShare/Sina Futures",retrieved_at:new Date().toISOString()}}],limitations:[diagnostic]};
+    await page.route("**/api/v1/agent/runs**", route => ok(route, route.request().url().endsWith("/runs") ? [{id:"PRIVATE_RUN_CANARY",question:"页面核查任务",status:"failed",created_at:new Date().toISOString()}] : {id:"PRIVATE_RUN_CANARY",status:"failed",error:diagnostic,state:{question:"页面核查任务",final_answer:`保持谨慎。\n\n数据说明：get_market_history failed: ${diagnostic}`,evidence,tool_results:[{tool:"get_market_history",error:diagnostic,arguments:{context:"PRIVATE_CONTEXT_CANARY"}}]}}));
+    await page.route("**/api/v1/knowledge/documents", route => ok(route,[{id:"PRIVATE_DOCUMENT_CANARY",filename:"研究资料.md",status:"ready",metadata:{embedding_provider:"EMBEDDING_CANARY",chunk_count:2}}]));
+    await page.route("**/api/v1/knowledge/search", route => ok(route,[{chunk_id:"PRIVATE_CHUNK_CANARY",document_id:"PRIVATE_DOCUMENT_CANARY",content:"实际利率影响黄金。",metadata:{filename:"研究资料.md",page:2,chunk_index:"PRIVATE_CHUNK_CANARY"}}]));
+    await page.route("**/api/v1/backtests/backtest-1", route => ok(route,{id:"PRIVATE_BACKTEST_CANARY",status:"completed",result:{metrics:{cumulative_return:0.1,INTERNAL_METRIC_CANARY:42},trades:[],equity_curve:[],drawdown_curve:[]}}));
+    await page.route("**/api/v1/chat/stream", route => route.fulfill({status:200,contentType:"text/event-stream",body:`event: tool_finished\ndata: ${JSON.stringify({tool:"INTERNAL_TOOL_CANARY",success:false})}\n\nevent: answer_delta\ndata: ${JSON.stringify({delta:"资料暂不完整，请谨慎参考。"})}\n\nevent: run_finished\ndata: ${JSON.stringify({run_id:"PRIVATE_RUN_CANARY",session_id:"session-1",status:"completed",evidence})}\n\n`}));
+    await page.goto("/dashboard");
+    if (locale === "en") await page.getByRole("button",{name:"EN",exact:true}).click();
+    for (const path of ["dashboard","analysis","chat","forecast","backtest","portfolio","news","reports","knowledge","tasks","settings","login"]) {
+      await page.goto(`/${path}`);
+      await expect(page.locator("main h1")).toBeVisible();
+      if (path === "tasks") await page.getByRole("button",{name:/页面核查任务/}).click();
+      if (path === "knowledge") {
+        await expect(page.getByText("研究资料.md",{exact:true})).toBeVisible();
+        await page.getByRole("button",{name:locale === "zh" ? "检索" : "Search",exact:true}).click();
+        await expect(page.getByText("实际利率影响黄金。",{exact:true})).toBeVisible();
+        expect(await page.locator('a[href^="/chat?q="]').getAttribute("href")).not.toContain("CANARY");
+      }
+      if (path === "chat") {
+        await page.getByRole("textbox").fill("模拟界面核查");
+        await page.getByRole("button",{name:locale === "zh" ? "发送" : "Send",exact:true}).click();
+        await expect(page.getByText("资料暂不完整，请谨慎参考。",{exact:true})).toBeVisible();
+      }
+      if (path === "backtest") await expect(page.getByText(locale === "zh" ? "累计收益率" : "Cumulative return",{exact:true})).toBeVisible();
+      if (path === "tasks") await expect(page.getByText("保持谨慎。",{exact:false})).toBeVisible();
+      await page.locator("main details").evaluateAll(items => items.forEach(item => item.setAttribute("open","")));
+      await expect(page.locator("main")).not.toContainText(/CANARY|ValidationError|Traceback|postgres:\/\/|get_market_history|Embedding|600ms|JWT|distributed queue/);
+      if (["chat","tasks","knowledge"].includes(path)) await page.screenshot({path:testInfo.outputPath(`${path}-${locale}.png`),fullPage:true});
+    }
+  });
+}
+
+test("backend failures display a safe actionable message", async ({ page }) => {
+  test.setTimeout(60000);
+  await page.route("**/api/v1/**", route => route.fulfill({status:500,contentType:"application/json",body:JSON.stringify({success:false,error:{code:"INTERNAL_ERROR",message:"Traceback PRIVATE_ERROR_CANARY postgres://private-host"}})}));
+  for (const path of ["dashboard","knowledge","tasks","chat"]) {
+    await page.goto(`/${path}`);
+    await expect(page.locator("main")).toContainText("暂时无法",{timeout:15000});
+    await expect(page.locator("main")).not.toContainText(/PRIVATE_ERROR_CANARY|Traceback|postgres:\/\//);
+  }
 });

@@ -48,6 +48,7 @@ def test_authenticated_research_report_and_tenant_boundaries(tmp_path, monkeypat
         monkeypatch.setattr(routes, "build_agent_runtime", unavailable)
         response = client.post("/api/v1/chat/stream", headers=first, json={"message": "test failure"})
         assert "event: error" in response.text
+        assert "Offline provider configuration failure" not in response.text
         latest = client.get("/api/v1/agent/runs", headers=first).json()["data"][0]
         assert latest["status"] == "failed"
         assert latest["question"] == "test failure"

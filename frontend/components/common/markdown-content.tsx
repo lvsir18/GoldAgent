@@ -2,6 +2,7 @@
 
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { publicAnswer } from "@/lib/presentation";
 
 export function MarkdownContent({ content }: { content: string }) {
   return (
@@ -29,7 +30,7 @@ export function MarkdownContent({ content }: { content: string }) {
           pre: ({ children }) => <pre className="my-3 overflow-x-auto whitespace-pre-wrap">{children}</pre>,
         }}
       >
-        {content}
+        {publicAnswer(content)}
       </ReactMarkdown>
     </div>
   );

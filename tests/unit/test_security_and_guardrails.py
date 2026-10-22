@@ -17,7 +17,7 @@ def test_guardrail_removes_certainty_and_discloses_derived_data():
     answer, flags = apply_financial_guardrail("黄金保证上涨，建议满仓。", verification, has_portfolio=False)
     assert "保证上涨" not in answer
     assert "不构成投资建议" in answer
-    assert "derived" in answer
+    assert "换算参考行情" in answer
     assert flags
 
 

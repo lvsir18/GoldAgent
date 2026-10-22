@@ -54,7 +54,10 @@ def test_health_auth_and_all_primary_workbench_apis(tmp_path, market_frame, sour
         client.app.state.services.market = MarketService(FakeMarketProvider(market_frame, source_metadata))
         assert client.get("/api/v1/market/summary").status_code == 200
         assert client.get("/api/v1/market/history?period=1mo&limit=30").status_code == 200
-        assert client.get("/api/v1/market/history?period=not-a-period").status_code == 422
+        invalid = client.get("/api/v1/market/history?period=not-a-period")
+        assert invalid.status_code == 422
+        assert "not-a-period" not in invalid.text
+        assert "ctx" not in invalid.text and "pydantic" not in invalid.text
         forecast = client.post("/api/v1/forecasts", json={"symbol": "AU0", "horizon": 3, "model": "linear"})
         assert forecast.status_code == 200
         forecast_id = forecast.json()["data"]["id"]

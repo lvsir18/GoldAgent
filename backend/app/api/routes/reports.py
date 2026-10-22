@@ -7,6 +7,7 @@ from ..dependencies import get_current_user_id, get_database, get_services
 from ...core.container import ServiceContainer
 from ...db.models import AgentRun, ReportRecord
 from ...db.session import Database
+from ...services.reports import ReportService
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 
@@ -20,8 +21,13 @@ class ReportCreate(BaseModel):
 
 def dump(item, content: bool = False):
     value = {"id": item.id, "report_type": item.report_type, "title": item.title, "metadata": item.metadata_json, "created_at": item.created_at.isoformat()}
-    if content: value["content"] = item.content
+    if content: value["content"] = public_content(item)
     return value
+
+
+def public_content(item):
+    # Render legacy reports from stored facts too; do not mutate history.
+    return ReportService().render_markdown(item.report_type, item.title, item.metadata_json or {}, item.created_at)
 
 
 @router.get("")
@@ -66,7 +72,7 @@ async def get_report(report_id: str, database: Database = Depends(get_database),
 
 @router.get("/{report_id}/download", response_class=PlainTextResponse)
 async def download_report(report_id: str, database: Database = Depends(get_database), user_id: str = Depends(get_current_user_id)):
-    return (await get_owned(report_id, database, user_id)).content
+    return public_content(await get_owned(report_id, database, user_id))
 
 
 @router.delete("/{report_id}")

@@ -24,7 +24,7 @@ export default function NewsPage() {
         "Prioritizes the last 72 hours and expands to 14 days when needed.",
       )}
     />
-    <div className="mb-4 flex flex-wrap items-center gap-3 text-xs text-muted"><button disabled={q.isFetching || search.length < 2} onClick={() => q.refetch()} className="text-gold">{q.isFetching ? text("更新中…", "Updating…") : text("刷新新闻", "Refresh news")}</button><span>{text("同标题去重；搜索输入防抖600ms", "Duplicate titles removed; 600ms search debounce")}</span>{q.dataUpdatedAt > 0 && <span>{text("本次获取", "Retrieved")} {new Date(q.dataUpdatedAt).toLocaleTimeString(dateLocale)}</span>}</div>
+    <div className="mb-4 flex flex-wrap items-center gap-3 text-xs text-muted"><button disabled={q.isFetching || search.length < 2} onClick={() => q.refetch()} className="text-gold">{q.isFetching ? text("更新中…", "Updating…") : text("刷新新闻", "Refresh news")}</button><span>{text("优先展示近期报道，已合并重复标题", "Recent reports first; duplicate titles merged")}</span>{q.dataUpdatedAt > 0 && <span>{text("本次获取", "Retrieved")} {new Date(q.dataUpdatedAt).toLocaleTimeString(dateLocale)}</span>}</div>
     {query.trim().length < 2 && <p className="mb-3 text-sm text-muted">{text("请输入至少两个字符", "Enter at least two characters")}</p>}
     <input
       value={query}

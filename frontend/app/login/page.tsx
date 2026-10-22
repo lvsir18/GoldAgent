@@ -7,6 +7,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { authApi } from "@/services/api/auth";
 import { useAuthStore } from "@/stores/auth";
 import { useLanguage } from "@/i18n/language";
+import { userError } from "@/lib/presentation";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -24,7 +25,7 @@ export default function LoginPage() {
     try {
       const tokens = await (register ? authApi.register({ email, password }) : authApi.login({ email, password }));
       queryClient.clear(); setTokens(tokens); router.push("/dashboard");
-    } catch (reason) { setError((reason as Error).message); }
+    } catch (reason) { setError(userError(reason, text)); }
     finally { setBusy(false); }
   };
 
@@ -32,7 +33,7 @@ export default function LoginPage() {
     <div className="card p-7">
       <p className="text-xs tracking-widest text-gold">SECURE ACCESS</p>
       <h1 className="mt-2 text-2xl font-semibold">{register ? text("创建 GoldAgent 账户", "Create a GoldAgent account") : text("登录 GoldAgent", "Log in to GoldAgent")}</h1>
-      <p className="mt-2 text-sm text-muted">{text("Demo 模式可直接使用；生产模式通过 JWT 隔离用户数据。", "Demo mode works immediately; production mode isolates user data with JWT authentication.")}</p>
+      <p className="mt-2 text-sm text-muted">{text("登录后可单独保存你的会话、持仓和研究资料。", "Sign in to save your conversations, portfolio and research.")}</p>
       <form onSubmit={submit} className="mt-6 space-y-4">
         <label className="block text-sm">{text("邮箱", "Email")}<input aria-label={text("邮箱", "Email")} type="email" required value={email} onChange={event => setEmail(event.target.value)} className="mt-2 w-full rounded border border-line bg-canvas p-3" /></label>
         <label className="block text-sm">{text("密码", "Password")}<input aria-label={text("密码", "Password")} type="password" minLength={8} required value={password} onChange={event => setPassword(event.target.value)} className="mt-2 w-full rounded border border-line bg-canvas p-3" /></label>

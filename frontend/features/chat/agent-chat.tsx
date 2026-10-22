@@ -9,17 +9,9 @@ import type { Session } from "@/types/api";
 import { MarkdownContent } from "@/components/common/markdown-content";
 import { reportsApi, researchApi } from "@/services/api/domain";
 import Link from "next/link";
+import { userError, toolLabel as displayToolLabel, publicAnswer } from "@/lib/presentation";
+import { ResearchEvidence } from "@/components/common/research-evidence";
 
-const toolNames: Record<string, [string, string]> = {
-  get_gold_spot_price: ["获取黄金现价", "Gold spot price"],
-  get_market_history: ["获取历史行情", "Market history"],
-  calculate_technical_indicators: ["计算技术指标", "Technical indicators"],
-  search_financial_news: ["搜索财经新闻", "Financial news"],
-  forecast_gold_price: ["黄金价格预测", "Gold forecast"],
-  analyze_portfolio: ["投资组合分析", "Portfolio analysis"],
-  run_backtest: ["运行策略回测", "Strategy backtest"],
-  retrieve_financial_knowledge: ["检索金融知识库", "Knowledge retrieval"],
-};
 
 export function AgentChat() {
   const { locale, text } = useLanguage();
@@ -35,7 +27,7 @@ export function AgentChat() {
   const viewport = useRef<HTMLDivElement>(null);
   const follow = useRef(true);
   const error = localError || runError;
-  const notice = localNotice || ({ completed: text("研究已保存到任务记录", "Research saved to task history"), incomplete: text("研究未完整完成，请查看执行详情或调整预算后重试", "Research is incomplete. Check details or adjust the budget before retrying."), stopped: text("已停止，可以修改问题后重试", "Stopped. Edit your question to retry."), "": "" })[runNotice];
+  const notice = localNotice || ({ completed: text("研究已保存到任务记录", "Research saved to task history"), incomplete: text("研究尚未完成，可调整问题范围后重试", "Research is incomplete. Narrow your question and retry."), stopped: text("已停止，可以修改问题后重试", "Stopped. Edit your question to retry."), "": "" })[runNotice];
   const setMode = (value: string) => useChatStore.setState({ mode: value });
 
   useEffect(() => {
@@ -62,10 +54,7 @@ export function AgentChat() {
     return pair ? text(pair[0], pair[1]) : text("正在执行…", "Working…");
   };
 
-  const toolLabel = (tool: string) => {
-    const pair = toolNames[tool];
-    return pair ? text(pair[0], pair[1]) : tool;
-  };
+  const toolLabel = (tool: string) => displayToolLabel(tool, text);
 
   const progress = currentProgress.tool
     ? `${toolLabel(currentProgress.tool)} · ${currentProgress.stage === "tool_started" ? text("执行中", "Running") : currentProgress.success ? text("已完成", "Completed") : text("失败", "Failed")}`
@@ -148,7 +137,7 @@ export function AgentChat() {
       <section className="card flex min-h-[520px] min-w-0 flex-col overflow-hidden lg:min-h-0">
         <div className="shrink-0 border-b border-line px-4 py-3">
           <div className="flex flex-wrap items-center justify-between gap-2"><h1 className="font-medium">{text("黄金研究助手", "Gold Research Agent")}</h1><div className="flex flex-wrap gap-3 text-xs text-gold"><button onClick={() => setShowHistory(v => !v)} aria-expanded={showHistory}>{text("会话历史", "History")}</button><button onClick={create} disabled={busy}>{text("新会话", "New chat")}</button><button onClick={() => setShowActivity(v => !v)} aria-expanded={showActivity}>{text("执行详情", "Activity")}</button><Link href="/tasks">{text("任务记录", "Tasks")}</Link></div></div>
-          <p className="text-xs text-muted">{text("工具结果会经过来源核验和金融护栏", "Tool results are source-checked and passed through financial guardrails")}</p>
+          <p className="text-xs text-muted">{text("结合行情与资料分析，并提示来源与风险", "Analyze market data and references with sources and risk notes")}</p>
         </div>
         <div ref={viewport} onScroll={e => { const el = e.currentTarget; follow.current = el.scrollHeight - el.scrollTop - el.clientHeight < 100; }} className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4 scrollbar-subtle sm:p-5">
           {messages.length === 0 && (
@@ -163,15 +152,15 @@ export function AgentChat() {
               {message.role === "assistant" && message.content
                 ? <MarkdownContent content={message.content}/>
                 : message.content || (busy ? progress || text("正在执行…", "Working…") : "")}
-              {message.role === "assistant" && message.content && !busy && <button className="mt-3 block text-xs text-gold" onClick={() => navigator.clipboard.writeText(message.content).then(() => setNotice(text("已复制", "Copied"))).catch(e => setError(e.message))}>{text("复制回答", "Copy answer")}</button>}
+              {message.role === "assistant" && message.content && !busy && <button className="mt-3 block text-xs text-gold" onClick={() => navigator.clipboard.writeText(publicAnswer(message.content)).then(() => setNotice(text("已复制", "Copied"))).catch(e => setError(e.message))}>{text("复制回答", "Copy answer")}</button>}
             </div>
           ))}
-          {evidence && <details className="rounded-lg border border-line p-3 text-sm"><summary className="cursor-pointer text-gold">{text("证据与数据边界", "Evidence and limitations")} · {evidence.citations?.length ?? 0}</summary><div className="mt-3 space-y-3">{evidence.snapshots?.map((s: any, i: number) => <p key={i} className="text-xs text-muted">{s.tool} · {s.metadata.source} · {s.metadata.retrieved_at} {s.metadata.is_stale ? text("（过期）", "(stale)") : ""}</p>)}{evidence.citations?.map((c: any, i: number) => <p key={i}>{c.url ? <a href={c.url} target="_blank" rel="noreferrer" className="text-gold">{c.title}</a> : `${c.title} · ${text("页", "page")} ${c.page ?? "—"} · ${c.chunk_id}`}<span className="block text-xs text-muted">{c.source} {c.published_at}</span></p>)}{evidence.limitations?.map((s: string, i: number) => <p key={i} className="text-warning">{s}</p>)}</div></details>}
+          {evidence && <ResearchEvidence evidence={evidence}/>}
           {runId && !busy && <div className="flex flex-wrap gap-4 text-xs text-gold"><button disabled={saving} onClick={async () => { setSaving(true); try { await reportsApi.create({ title: messages.findLast(m => m.role === "user")?.content.slice(0, 60) || "Gold research", run_id: runId }); setNotice(text("报告已保存，可到报告库查看", "Saved to report library")); } catch (e) { setError((e as Error).message); } finally { setSaving(false); } }}>{text("保存研究报告", "Save report")}</button><button onClick={() => researchApi.feedback(runId, "helpful").then(() => setNotice(text("已记录反馈", "Feedback saved"))).catch(e => setError(e.message))}>{text("有帮助", "Helpful")}</button><button onClick={() => researchApi.feedback(runId, "unhelpful").then(() => setNotice(text("已记录反馈", "Feedback saved"))).catch(e => setError(e.message))}>{text("需改进", "Needs improvement")}</button></div>}
           {notice && <p role="status" className="text-xs text-gold">{notice}</p>}
         </div>
         <form onSubmit={send} className="shrink-0 border-t border-line bg-surface p-3 sm:p-4">
-          <div className="mb-2 flex flex-wrap items-center gap-3 text-xs text-muted"><select aria-label={text("研究模式", "Research mode")} value={mode} onChange={e => setMode(e.target.value)} disabled={busy} className="rounded border border-line bg-canvas p-1"><option value="quick">{text("快速问答 · 最多4轮", "Quick · up to 4 rounds")}</option><option value="deep">{text("深入研究 · 配置预算", "Deep · configured budget")}</option></select><span>{text("仅显示执行事实；最终回答经核验后呈现", "Execution facts only; final answer appears after verification")}</span>{messages.length > 0 && !busy && <button type="button" onClick={() => setInput([...messages].reverse().find(m => m.role === "user")?.content ?? "")} className="text-gold">{text("编辑上个问题重试", "Edit last question to retry")}</button>}</div>
+          <div className="mb-2 flex flex-wrap items-center gap-3 text-xs text-muted"><select aria-label={text("研究模式", "Research mode")} value={mode} onChange={e => setMode(e.target.value)} disabled={busy} className="rounded border border-line bg-canvas p-1"><option value="quick">{text("快速问答", "Quick answer")}</option><option value="deep">{text("深入研究", "Deep research")}</option></select><span>{text("仅显示执行事实；最终回答经核验后呈现", "Execution facts only; final answer appears after verification")}</span>{messages.length > 0 && !busy && <button type="button" onClick={() => setInput([...messages].reverse().find(m => m.role === "user")?.content ?? "")} className="text-gold">{text("编辑上个问题重试", "Edit last question to retry")}</button>}</div>
           <div className="mx-auto flex w-full max-w-4xl items-end gap-2">
             <textarea
               value={input}
@@ -192,13 +181,13 @@ export function AgentChat() {
             {busy && <button type="button" onClick={stop} className="h-12 rounded-xl border border-negative/50 px-3 text-sm text-negative">{text("停止", "Stop")}</button>}
           </div>
         </form>
-        {error && <div className="shrink-0 border-t border-negative/40 p-3 text-sm text-negative">{error}</div>}
+        {error && <div className="shrink-0 border-t border-negative/40 p-3 text-sm text-negative">{userError(error, text)}</div>}
       </section>
 
       {showActivity && <aside className="card max-h-80 min-h-0 overflow-y-auto p-4 scrollbar-subtle lg:max-h-none">
-        <h2 className="text-sm font-medium">Agent Activity</h2>
+        <h2 className="text-sm font-medium">{text("研究进度", "Research activity")}</h2>
         <p className="mt-1 text-xs leading-5 text-muted">
-          {text("不显示隐藏推理，只显示当前阶段和工具执行事实。", "Hidden reasoning is not shown; only stages and actual tool executions are displayed.")}
+          {text("查看当前研究步骤与资料获取情况。", "Follow research steps and source retrieval progress.")}
         </p>
         {busy && progress && <div className="mt-4 rounded-lg border border-gold/30 bg-gold/5 p-3 text-sm text-gold">{progress}</div>}
         <div className="mt-4 space-y-2">

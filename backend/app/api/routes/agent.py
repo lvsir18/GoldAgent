@@ -218,7 +218,7 @@ async def chat_stream(request: Request, body: ChatRequest, database: Database = 
         except Exception as exc:
             yield encode(
                 "error",
-                {"run_id": run_id, "code": "AGENT_RUN_FAILED", "message": str(exc) or type(exc).__name__},
+                {"run_id": run_id, "code": "AGENT_RUN_FAILED", "message": "研究暂未完成，请稍后重试；若持续出现，请联系网站维护者。"},
             )
         finally:
             if not task.done():

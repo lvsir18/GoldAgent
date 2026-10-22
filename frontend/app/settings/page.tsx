@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { PageHeading } from "@/components/common/page-heading";
 import { useLanguage } from "@/i18n/language";
+import { userError } from "@/lib/presentation";
 import { userApi } from "@/services/api/domain";
 
 type Preferences = {
@@ -87,7 +88,7 @@ export default function SettingsPage() {
       />
 
       {me.isLoading && <p className="text-sm text-muted">{text("正在加载设置…", "Loading settings…")}</p>}
-      {me.isError && <p className="text-sm text-negative">{me.error.message}</p>}
+      {me.isError && <p className="text-sm text-negative">{userError(me.error, text)}</p>}
 
       {me.data && (
         <form onSubmit={submit} className="space-y-4">
@@ -161,7 +162,7 @@ export default function SettingsPage() {
               {save.isPending ? text("正在保存…", "Saving…") : text("保存个性化设置", "Save personalization")}
             </button>
             {save.isSuccess && <span className="text-sm text-positive">{text("已保存，将在下一次 Agent 对话中生效。", "Saved. Changes apply to your next Agent conversation.")}</span>}
-            {save.isError && <span className="text-sm text-negative">{save.error.message}</span>}
+            {save.isError && <span className="text-sm text-negative">{userError(save.error, text)}</span>}
           </div>
         </form>
       )}

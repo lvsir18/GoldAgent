@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from typing import Any
+from ..core.presentation import tool_name
 
 
 PROHIBITED_CERTAINTY = (
@@ -20,12 +21,12 @@ def verify_tool_results(tool_results: list[dict[str, Any]]) -> dict[str, Any]:
         if metadata:
             sources.append(metadata)
             if metadata.get("is_stale"):
-                issues.append(f"{result.get('tool')} returned stale data")
+                issues.append(f"{tool_name(result.get('tool'))}使用了较早数据，请核查最新变化")
             if metadata.get("source_type") == "derived":
-                issues.append(f"{result.get('tool')} returned derived, not direct, market data")
+                issues.append(f"{tool_name(result.get('tool'))}为换算参考行情，不是直接交易报价")
         if result.get("error"):
-            issues.append(f"{result.get('tool')} failed: {result['error']}")
-    return {"passed": not any("failed" in issue for issue in issues), "issues": issues, "sources": sources}
+            issues.append(f"{tool_name(result.get('tool'))}暂时获取失败，相关结论可能不完整，请稍后重试")
+    return {"passed": not any(result.get("error") for result in tool_results), "issues": list(dict.fromkeys(issues)), "sources": sources}
 
 
 def apply_financial_guardrail(answer: str, verification: dict[str, Any] | None, has_portfolio: bool) -> tuple[str, list[str]]:

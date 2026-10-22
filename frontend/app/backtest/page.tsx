@@ -6,6 +6,7 @@ import { ResultChart } from "@/components/charts/result-chart";
 import { backtestApi } from "@/services/api/domain";
 import { PageHeading } from "@/components/common/page-heading";
 import { useLanguage } from "@/i18n/language";
+import { userError } from "@/lib/presentation";
 
 type MetricDefinition = {
   label: [string, string];
@@ -63,7 +64,7 @@ export default function BacktestPage() {
   const status = result.data?.status ?? create.data?.status ?? "queued";
 
   const formatMetric = (key: string, value: unknown) => {
-    if (typeof value !== "number") return String(value);
+    if (typeof value !== "number" || !Number.isFinite(value)) return "—";
     const definition = metricDefinitions[key];
     if (definition?.format === "percent") return `${(value * 100).toFixed(2)}%`;
     if (definition?.format === "integer") return value.toFixed(0);
@@ -91,16 +92,16 @@ export default function BacktestPage() {
         <label className="text-sm">{text("单边交易费率（%）", "One-way fee (%)")}<input type="number" min={0} max={10} step={0.01} value={costRate} onChange={e => setCostRate(Number(e.target.value))} className="mt-2 block w-28 rounded border border-line bg-canvas p-2"/></label>
         {shortWindow >= longWindow && <span className="text-sm text-negative">{text("短均线必须小于长均线", "Short MA must be less than long MA")}</span>}
       </form>
-      <label className="my-4 block text-sm">{text("历史回测", "Backtest history")}<select value={id ?? ""} onChange={e => setId(e.target.value)} className="ml-3 max-w-full rounded border border-line bg-surface p-2"><option value="">{text("选择记录", "Select a record")}</option>{history.data?.map(r => <option key={r.id} value={r.id}>{new Date(r.created_at).toLocaleString()} · {text(...(statusLabels[r.status] ?? [r.status,r.status]))}</option>)}</select></label>
+      <label className="my-4 block text-sm">{text("历史回测", "Backtest history")}<select value={id ?? ""} onChange={e => setId(e.target.value)} className="ml-3 max-w-full rounded border border-line bg-surface p-2"><option value="">{text("选择记录", "Select a record")}</option>{history.data?.map(r => <option key={r.id} value={r.id}>{new Date(r.created_at).toLocaleString()} · {text(...(statusLabels[r.status] ?? ["状态更新中","Updating status"]))}</option>)}</select></label>
 
-      {id && <p className="my-4 text-sm text-muted">{text("任务", "Job")} {id} · {text(...(statusLabels[status] ?? [status, status]))}</p>}
-      {(create.error || result.error || history.error || result.data?.error) && <p className="text-negative">{create.error?.message ?? result.error?.message ?? history.error?.message ?? result.data?.error}</p>}
+      {id && <p className="my-4 text-sm text-muted">{text("回测进度", "Backtest progress")} · {text(...(statusLabels[status] ?? ["状态更新中", "Updating status"]))}</p>}
+      {(create.error || result.error || history.error || result.data?.error) && <p className="text-negative">{userError(create.error || result.error || history.error || result.data?.error, text)}</p>}
 
       {backtest && (
         <div>
-          <p className="mb-4 text-xs leading-6 text-warning">{text("前一日收盘信号，下一日开盘成交；双边计费，期末不强制卖出。AU0 连续合约仅供研究，不代表可直接交易的产品收益。历史旧记录未按新口径重算，请重新运行。", "Previous-close signal, next-open execution, fees on both sides, no forced final sale. AU0 continuous data is a research reference, not tradable product performance. Legacy records are not recalculated; run again.")}</p>
+          <p className="mb-4 text-xs leading-6 text-warning">{text("前一日收盘信号，下一日开盘成交；双边计费，期末不强制卖出。AU0 连续合约仅供研究，不代表可直接交易的产品收益。", "Previous-close signal, next-open execution, fees on both sides, no forced final sale. AU0 continuous data is a research reference, not tradable product performance. ")}</p>
           <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {Object.entries(backtest.metrics).map(([key, value]) => {
+            {Object.entries(backtest.metrics).filter(([key]) => metricDefinitions[key]).map(([key, value]) => {
               const definition = metricDefinitions[key];
               return <Metric key={key} label={definition ? text(...definition.label) : key} value={formatMetric(key, value)} />;
             })}
@@ -116,7 +117,7 @@ export default function BacktestPage() {
                 <tbody>{backtest.trades.map((trade: any, index: number) => (
                   <tr key={index} className="border-t border-line">
                     <td className="py-2">{trade.timestamp.slice(0, 10)}</td>
-                    <td>{trade.action === "buy" ? text("买入", "Buy") : trade.action === "sell" ? text("卖出", "Sell") : trade.action}</td>
+                    <td>{trade.action === "buy" ? text("买入", "Buy") : trade.action === "sell" ? text("卖出", "Sell") : text("其他操作", "Other action")}</td>
                     <td>{trade.price.toFixed(2)}</td>
                     <td>{trade.quantity.toFixed(4)}</td>
                     <td>{trade.cost.toFixed(2)}</td>
