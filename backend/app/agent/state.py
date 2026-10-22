@@ -32,3 +32,5 @@ class GoldAgentState(TypedDict, total=False):
     final_answer: str | None
     status: str
     usage: dict[str, int]
+    performance: list[dict[str, Any]]
+    force_synthesis: bool

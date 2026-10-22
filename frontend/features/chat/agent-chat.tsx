@@ -35,7 +35,7 @@ export function AgentChat() {
   const viewport = useRef<HTMLDivElement>(null);
   const follow = useRef(true);
   const error = localError || runError;
-  const notice = localNotice || ({ completed: text("研究已保存到任务记录", "Research saved to task history"), incomplete: text("研究达到步数上限，结果不完整", "Step limit reached; research is incomplete"), stopped: text("已停止，可以修改问题后重试", "Stopped. Edit your question to retry."), "": "" })[runNotice];
+  const notice = localNotice || ({ completed: text("研究已保存到任务记录", "Research saved to task history"), incomplete: text("研究未完整完成，请查看执行详情或调整预算后重试", "Research is incomplete. Check details or adjust the budget before retrying."), stopped: text("已停止，可以修改问题后重试", "Stopped. Edit your question to retry."), "": "" })[runNotice];
   const setMode = (value: string) => useChatStore.setState({ mode: value });
 
   useEffect(() => {
@@ -55,6 +55,8 @@ export function AgentChat() {
       waiting: ["仍在执行，请稍候…", "Still working; please wait…"],
       starting: ["正在启动 Agent…", "Starting Agent…"],
       answer: ["正在呈现最终回答…", "Displaying the final answer…"],
+      plan: ["正在并行采集研究证据…", "Collecting research evidence…"],
+      synthesize: ["证据已就绪，正在深度综合结论…", "Evidence ready; synthesizing the research…"],
     };
     const pair = labels[stage];
     return pair ? text(pair[0], pair[1]) : text("正在执行…", "Working…");

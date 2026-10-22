@@ -63,6 +63,9 @@ agent:
   max_steps: 12
   tool_timeout_seconds: 30
   max_tool_retries: 2
+  # Deep research collects evidence without repeated reasoning, then reasons once.
+  deep_reasoning_strategy: "final_only"
+  planning_max_tokens: 1024
   action_threshold: 0.80
   analysis_depth: "detailed"
   confidence_thresholds:

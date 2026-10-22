@@ -13,7 +13,7 @@ export default function TasksPage() {
   const [notice, setNotice] = useState("");
   const list = useQuery({ queryKey: ["research-runs"], queryFn: researchApi.list, refetchInterval: 5000 });
   const detail = useQuery({ queryKey: ["research-run", selected], queryFn: () => researchApi.get(selected), enabled: Boolean(selected), refetchInterval: q => q.state.data?.status === "running" ? 3000 : false });
-  const status: Record<string,string> = { running: text("执行中", "Running"), completed: text("已完成", "Completed"), failed: text("失败", "Failed"), cancelled: text("已停止", "Stopped"), max_steps: text("达到预算上限", "Budget reached") };
+  const status: Record<string,string> = { running: text("执行中", "Running"), completed: text("已完成", "Completed"), failed: text("失败", "Failed"), cancelled: text("已停止", "Stopped"), max_steps: text("达到预算上限", "Budget reached"), incomplete: text("结果未完整生成", "Incomplete response") };
   return <div className="space-y-4"><PageHeading eyebrow="RESEARCH HISTORY" title={text("研究任务记录", "Research task history")} description={text("找回研究结论、工具证据与失败原因。当前为对话任务记录，并非可离线执行的分布式队列。", "Recover results, evidence and failures. These are chat run records, not an offline distributed queue.")}/>
     {(list.error || detail.error) && <p role="alert" className="text-negative">{list.error?.message || detail.error?.message}</p>}
     {list.isLoading && <p>{text("加载中…", "Loading…")}</p>}

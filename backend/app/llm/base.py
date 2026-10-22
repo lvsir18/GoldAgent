@@ -26,6 +26,9 @@ class ChatResponse:
     prompt_tokens: int | None = None
     completion_tokens: int | None = None
     finish_reason: str | None = None
+    reasoning_content: str | None = field(default=None, repr=False)
+    reasoning_tokens: int | None = None
+    cached_tokens: int | None = None
 
 
 class LLMGateway(Protocol):

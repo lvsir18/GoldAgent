@@ -6,7 +6,7 @@ import asyncio
 import json
 import time
 import uuid
-from dataclasses import replace
+from contextlib import asynccontextmanager
 from typing import Any, AsyncIterator, TypeVar
 
 import httpx
@@ -32,6 +32,8 @@ def _message_payload(message: BaseMessage) -> dict[str, Any]:
         return {"role": "tool", "tool_call_id": message.tool_call_id, "content": str(message.content)}
     if isinstance(message, AIMessage):
         payload: dict[str, Any] = {"role": "assistant", "content": str(message.content or "")}
+        if message.additional_kwargs.get("reasoning_content"):
+            payload["reasoning_content"] = message.additional_kwargs["reasoning_content"]
         if message.tool_calls:
             payload["tool_calls"] = [
                 {
@@ -58,6 +60,7 @@ class OpenAICompatibleGateway(LLMGateway):
         self, *, provider: str, model: str, api_key: str, base_url: str,
         temperature: float = 0.2, max_tokens: int = 4096, timeout_seconds: int = 120,
         bound_tools: list[BaseTool] | None = None,
+        thinking: str | None = None, planning_max_tokens: int = 1024,
     ):
         if not api_key:
             raise ConfigurationError(f"API key for provider '{provider}' is not configured")
@@ -69,14 +72,44 @@ class OpenAICompatibleGateway(LLMGateway):
         self.max_tokens = max_tokens
         self.timeout_seconds = timeout_seconds
         self.bound_tools = bound_tools
+        self.thinking, self.planning_max_tokens = thinking, planning_max_tokens
         self.last_latency_ms: float | None = None
+        self._client: httpx.AsyncClient | None = None
+
+    @asynccontextmanager
+    async def session(self):
+        """One HTTP connection pool per run, never shared across users."""
+        async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
+            self._client = client
+            try:
+                yield
+            finally:
+                self._client = None
+
+    @asynccontextmanager
+    async def _http_client(self):
+        if self._client is not None:
+            yield self._client
+        else:
+            async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
+                yield client
 
     def bind_tools(self, tools: list[BaseTool]) -> "OpenAICompatibleGateway":
         return OpenAICompatibleGateway(
             provider=self.provider, model=self.model, api_key=self.api_key, base_url=self.base_url,
             temperature=self.temperature, max_tokens=self.max_tokens, timeout_seconds=self.timeout_seconds,
             bound_tools=tools,
+            thinking=self.thinking, planning_max_tokens=self.planning_max_tokens,
         )
+
+    def for_phase(self, phase: str) -> "OpenAICompatibleGateway":
+        gateway = OpenAICompatibleGateway(provider=self.provider, model=self.model, api_key=self.api_key,
+            base_url=self.base_url, temperature=self.temperature,
+            max_tokens=min(self.max_tokens, self.planning_max_tokens) if phase == "plan" else self.max_tokens,
+            timeout_seconds=self.timeout_seconds, bound_tools=None,
+            thinking="disabled" if phase == "plan" else "enabled", planning_max_tokens=self.planning_max_tokens)
+        gateway._client = self._client
+        return gateway
 
     def _payload(self, messages: list[BaseMessage], tools: list[BaseTool] | None, stream: bool = False) -> dict[str, Any]:
         selected_tools = tools if tools is not None else self.bound_tools
@@ -90,6 +123,17 @@ class OpenAICompatibleGateway(LLMGateway):
         if selected_tools:
             payload["tools"] = [_tool_payload(tool) for tool in selected_tools]
             payload["tool_choice"] = "auto"
+        if self.provider == "mimo":
+            # MiMo documents max_completion_tokens as the joint visible/reasoning
+            # budget. Do not rely on a legacy max_tokens alias being respected.
+            payload["max_completion_tokens"] = payload.pop("max_tokens")
+            if self.thinking is not None:
+                payload["thinking"] = {"type": self.thinking}
+            if self.thinking != "disabled":
+                payload.pop("temperature", None)
+        else:
+            for message in payload["messages"]:
+                message.pop("reasoning_content", None)
         return payload
 
     @retry(
@@ -100,7 +144,7 @@ class OpenAICompatibleGateway(LLMGateway):
         started = time.perf_counter()
         try:
             async with asyncio.timeout(self.timeout_seconds):
-                async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
+                async with self._http_client() as client:
                     response = await client.post(
                         f"{self.base_url}/chat/completions",
                         headers={"Authorization": f"Bearer {self.api_key}"},
@@ -133,12 +177,15 @@ class OpenAICompatibleGateway(LLMGateway):
             content=str(message.get("content") or ""), tool_calls=calls,
             prompt_tokens=usage.get("prompt_tokens"), completion_tokens=usage.get("completion_tokens"),
             finish_reason=choice.get("finish_reason"),
+            reasoning_content=message.get("reasoning_content"),
+            reasoning_tokens=(usage.get("completion_tokens_details") or {}).get("reasoning_tokens"),
+            cached_tokens=(usage.get("prompt_tokens_details") or {}).get("cached_tokens"),
         )
 
     async def stream(self, messages: list[BaseMessage], tools: list[BaseTool] | None = None) -> AsyncIterator[str]:
         try:
             async with asyncio.timeout(self.timeout_seconds):
-                async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
+                async with self._http_client() as client:
                     async with client.stream(
                         "POST", f"{self.base_url}/chat/completions",
                         headers={"Authorization": f"Bearer {self.api_key}"},
@@ -182,4 +229,5 @@ def build_llm_gateway(settings: AppSettings) -> OpenAICompatibleGateway:
         provider=settings.agent.provider, model=settings.agent.model, api_key=key,
         base_url=str(settings.agent.api_url), temperature=settings.agent.temperature,
         max_tokens=settings.agent.max_tokens, timeout_seconds=settings.agent.request_timeout_seconds,
+        planning_max_tokens=settings.agent.planning_max_tokens,
     )

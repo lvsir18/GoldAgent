@@ -39,6 +39,10 @@ def test_authenticated_research_report_and_tenant_boundaries(tmp_path, monkeypat
         assert client.post("/api/v1/reports", headers=second, json={"title":"forbidden", "run_id":run["id"]}).status_code == 404
         assert client.post(f"/api/v1/agent/runs/{run['id']}/feedback", headers=first, json={"value":"helpful"}).status_code == 200
         assert client.post(f"/api/v1/agent/runs/{run['id']}/feedback", headers=second, json={"value":"helpful"}).status_code == 404
+        deep = client.post("/api/v1/chat", headers=first, json={"message":"offline deep research", "mode":"deep"}).json()["data"]
+        assert deep["mode"] == "deep"
+        assert [p["phase"] for p in deep["metrics"]["phases"]] == ["plan", "synthesize"]
+        assert deep["metrics"]["reasoning_strategy"] == "final_only"
         def unavailable(*args, **kwargs):
             raise RuntimeError("Offline provider configuration failure")
         monkeypatch.setattr(routes, "build_agent_runtime", unavailable)

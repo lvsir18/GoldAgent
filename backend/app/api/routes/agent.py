@@ -97,7 +97,7 @@ async def _run(
         run.state = {"question": body.message, "mode": body.mode}
     try:
         portfolio_context, user_preferences, risk_profile = await _load_user_context(database, user_id)
-        settings = request.app.state.settings
+        settings = request.app.state.settings.model_copy(update={"agent": request.app.state.settings.agent.model_copy(update={"research_mode": body.mode})})
         if body.mode == "quick":
             settings = settings.model_copy(update={"agent": settings.agent.model_copy(update={"max_steps": min(settings.agent.max_steps, 4), "max_tokens": min(settings.agent.max_tokens, 1600), "run_timeout_seconds": min(settings.agent.run_timeout_seconds, 90)})})
         started = time.perf_counter()
@@ -134,7 +134,17 @@ async def _run(
         "mode": body.mode,
         "question": body.message,
         "evidence": research_evidence(state.get("tool_results", [])),
-        "metrics": {"model": settings.agent.model, "provider": settings.agent.provider, "llm_calls": state.get("current_step", 0), "tool_calls": len(state.get("tool_results", [])), "usage": state.get("usage", {}), "duration_ms": round((time.perf_counter() - started) * 1000), "budget": {"max_steps": settings.agent.max_steps, "max_tokens_per_response": settings.agent.max_tokens, "timeout_seconds": settings.agent.run_timeout_seconds}},
+        "metrics": {
+            "model": settings.agent.model, "provider": settings.agent.provider,
+            "llm_calls": state.get("current_step", 0), "tool_calls": len(state.get("tool_results", [])),
+            "usage": state.get("usage", {}), "duration_ms": round((time.perf_counter() - started) * 1000),
+            "phases": state.get("performance", []),
+            "reasoning_strategy": settings.agent.deep_reasoning_strategy if body.mode == "deep" else "default",
+            "tool_context": {"raw_chars": sum(t.get("raw_chars", 0) for t in state.get("tool_results", [])),
+                "model_chars": sum(t.get("context_chars", 0) for t in state.get("tool_results", []))},
+            "budget": {"max_steps": settings.agent.max_steps, "max_tokens_per_response": settings.agent.max_tokens,
+                "planning_max_tokens": settings.agent.planning_max_tokens, "timeout_seconds": settings.agent.run_timeout_seconds},
+        },
     }
     async with database.session() as session:
         sessions = SessionRepository(session, user_id)

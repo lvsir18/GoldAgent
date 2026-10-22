@@ -67,6 +67,9 @@ class AgentSettings(FlexibleModel):
     max_steps: int = Field(default=12, ge=1, le=50)
     tool_timeout_seconds: int = Field(default=30, ge=1, le=300)
     max_tool_retries: int = Field(default=2, ge=0, le=10)
+    research_mode: Literal["quick", "deep"] = "quick"
+    deep_reasoning_strategy: Literal["final_only", "every_round"] = "final_only"
+    planning_max_tokens: int = Field(default=1024, ge=256, le=4096)
 
     @field_validator("api_endpoint")
     @classmethod
