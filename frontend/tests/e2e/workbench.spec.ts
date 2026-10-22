@@ -109,6 +109,7 @@ test("chat keeps running across navigation and shows navigation/session indicato
     await route.fulfill({status:200,contentType:"text/event-stream",body:'event: answer_delta\ndata: {"delta":"离开页面后仍然完成"}\n\nevent: run_finished\ndata: {"run_id":"r-nav","session_id":"session-1","status":"completed"}\n\n'});
   });
   await page.goto("/chat");
+  expect((await page.locator("aside").first().boundingBox())?.width).toBeLessThanOrEqual(188);
   await page.getByRole("textbox").fill("后台运行测试");
   await page.getByRole("button",{name:"发送",exact:true}).click();
   await expect(page.getByRole("img",{name:"Agent 正在运行",exact:true}).first()).toBeVisible();
@@ -123,6 +124,15 @@ test("chat keeps running across navigation and shows navigation/session indicato
   await expect(page.getByText("离开页面后仍然完成",{exact:true})).toBeVisible();
   await expect(page.getByRole("img",{name:"Agent 正在运行",exact:true})).toHaveCount(0);
   expect(calls).toBe(1);
+});
+
+test("compact navigation fits English labels without horizontal overflow", async ({ page }) => {
+  await page.goto("/dashboard");
+  await page.getByRole("button", {name:"EN",exact:true}).click();
+  const sidebar = page.locator("aside").first();
+  await expect(sidebar.getByRole("link", {name:"Research tasks",exact:true})).toBeVisible();
+  expect(await sidebar.evaluate(element => element.scrollWidth <= element.clientWidth)).toBeTruthy();
+  expect((await sidebar.boundingBox())?.width).toBeLessThanOrEqual(188);
 });
 
 test("a completed chat saves a research report with preview and authenticated download", async ({ page }) => {

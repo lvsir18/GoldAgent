@@ -46,23 +46,24 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <div className="min-h-dvh md:grid md:h-dvh md:grid-cols-[230px_minmax(0,1fr)] md:overflow-hidden">
-      <aside className="hidden h-dvh overflow-y-auto border-r border-line bg-surface p-4 md:block">
-        <div className="mb-8 px-3">
+    <div className="min-h-dvh md:grid md:h-dvh md:grid-cols-[188px_minmax(0,1fr)] md:overflow-hidden">
+      <aside className="hidden h-dvh overflow-y-auto border-r border-line bg-surface px-3 py-4 md:block">
+        <div className="mb-8 px-2">
           <div className="text-xl font-semibold tracking-tight text-gold">GoldAgent</div>
-          <div className="text-xs text-muted">AI MARKET INTELLIGENCE</div>
+          <div className="text-[10px] text-muted">AI MARKET INTELLIGENCE</div>
         </div>
         <nav className="space-y-1">
           {navigation.map(([href, zh, en, Icon]) => (
             <Link
               key={href}
               href={href}
+              title={text(zh, en)}
               className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted hover:bg-canvas hover:text-ink",
+                "flex items-center gap-2 rounded-lg px-2 py-2 text-sm text-muted hover:bg-canvas hover:text-ink",
                 pathname.startsWith(href) && "bg-canvas text-gold",
               )}
             >
-              <Icon size={17}/>{text(zh, en)}
+              <Icon size={17} className="shrink-0"/><span className="min-w-0 truncate">{text(zh, en)}</span>
               {href === "/chat" && chatRunning && running}
             </Link>
           ))}
