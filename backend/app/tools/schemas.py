@@ -3,12 +3,13 @@
 from typing import Literal
 
 from pydantic import BaseModel, Field
+from ..core.market_period import MarketPeriod
 
 
 class MarketQuery(BaseModel):
     symbol: str = Field(default="AU0", min_length=1, max_length=20)
     market: Literal["CN", "INTL"] = "CN"
-    period: str = Field(default="3y", pattern=r"^(\d+[ymd]|max|all)$")
+    period: MarketPeriod = Field(default="3y", pattern=r"^([1-9]\d*(y|mo|w|d)|all)$", description="Daily-history lookback: 30d=30 calendar days, 2w=2 weeks, 1mo=1 month, 3y=3 years, all=all available history. Legacy 1m is accepted as one month, not one minute.")
 
 
 class MarketHistoryQuery(MarketQuery):

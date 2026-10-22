@@ -5,6 +5,7 @@ import logging
 from fastapi import HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from fastapi.encoders import jsonable_encoder
 
 from src.errors import GoldAgentError
 
@@ -31,7 +32,7 @@ async def http_error_handler(request: Request, exc: HTTPException):
 
 
 async def validation_error_handler(request: Request, exc: RequestValidationError):
-    return JSONResponse(status_code=422, content=_payload(request, "VALIDATION_ERROR", "Request validation failed", {"errors": exc.errors()}))
+    return JSONResponse(status_code=422, content=_payload(request, "VALIDATION_ERROR", "Request validation failed", {"errors": jsonable_encoder(exc.errors())}))
 
 
 async def unhandled_error_handler(request: Request, exc: Exception):

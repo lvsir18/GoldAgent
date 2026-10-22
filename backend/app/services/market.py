@@ -8,6 +8,7 @@ import pandas as pd
 
 from ..providers.market.base import MarketDataProvider, ProviderFrame, ProviderQuote
 from ..schemas.market import MarketHistory, MarketPoint, MarketSummary
+from ..core.market_period import normalize_period
 
 
 class MarketService:
@@ -15,7 +16,10 @@ class MarketService:
         self.provider = provider
 
     async def history_frame(self, symbol: str = "AU0", market: str = "CN", period: str = "3y") -> ProviderFrame:
-        result = await self.provider.get_history(symbol=symbol, market=market, period=period)
+        period = normalize_period(period)
+        # Fetch the available daily series once; range semantics belong to this
+        # service, not provider-specific suffix handling (which ignored months).
+        result = await self.provider.get_history(symbol=symbol, market=market, period="all")
         required = {"open", "high", "low", "close", "volume"}
         missing = required.difference(result.frame.columns)
         if missing:
@@ -24,7 +28,13 @@ class MarketService:
         clean = clean.dropna(subset=["open", "high", "low", "close"])
         if clean.empty:
             raise ValueError("Market series has no valid OHLC rows")
+        if period != "all":
+            unit = "mo" if period.endswith("mo") else period[-1]
+            amount = int(period[:-len(unit)])
+            offset = pd.DateOffset(**{{"d":"days", "w":"weeks", "mo":"months", "y":"years"}[unit]:amount})
+            clean = clean.loc[clean.index >= clean.index[-1] - offset]
         result.frame = clean
+        result.metadata = result.metadata.model_copy(update={"data_start":clean.index[0].to_pydatetime(), "data_end":clean.index[-1].to_pydatetime()})
         return result
 
     async def latest_quote(self, symbol: str = "AU0", market: str = "CN") -> ProviderQuote | None:

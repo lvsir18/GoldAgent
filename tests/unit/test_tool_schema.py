@@ -45,3 +45,14 @@ async def test_portfolio_tool_uses_saved_holding_by_default(market_frame, source
     assert result["market_value"] == 10500
     assert result["pnl"] == 500
     assert result["risk_level"] == "conservative"
+
+
+async def test_morning_brief_history_tool_accepts_model_month_format(market_frame, source_metadata):
+    container = ServiceContainer(
+        settings=AppSettings(), market=MarketService(FakeMarketProvider(market_frame, source_metadata)),
+        technical=TechnicalAnalysisService(), forecast=ForecastService(), news=NewsService(NoNews()),
+        portfolio=PortfolioService(), backtest=BacktestService(), reports=ReportService(),
+    )
+    result = await build_tool_registry(container).get("get_market_history").ainvoke({"market":"CN","period":"1mo","limit":30})
+    assert result["points"]
+    assert len(result["points"]) <= 30
