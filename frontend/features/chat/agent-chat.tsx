@@ -1,17 +1,14 @@
 "use client";
 
 import { FormEvent, useEffect, useRef, useState } from "react";
-import { MessageSquarePlus, Trash2 } from "lucide-react";
+import { MessageSquarePlus, Trash2, Loader2 } from "lucide-react";
 import { useLanguage } from "@/i18n/language";
-import { streamChat, sessionsApi } from "@/services/api/chat";
+import { sessionsApi } from "@/services/api/chat";
+import { useChatStore } from "@/stores/chat";
 import type { Session } from "@/types/api";
 import { MarkdownContent } from "@/components/common/markdown-content";
 import { reportsApi, researchApi } from "@/services/api/domain";
 import Link from "next/link";
-
-type Message = { role: "user" | "assistant"; content: string };
-type Activity = { tool: string; success: boolean | null };
-type ActivityNote = "idle" | "deciding" | "no-tools";
 
 const toolNames: Record<string, [string, string]> = {
   get_gold_spot_price: ["获取黄金现价", "Gold spot price"],
@@ -26,37 +23,27 @@ const toolNames: Record<string, [string, string]> = {
 
 export function AgentChat() {
   const { locale, text } = useLanguage();
-  const [sessions, setSessions] = useState<Session[]>([]);
-  const [sessionId, setSessionId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
+  const { sessions, sessionId, messages, busy, activities, activityNote, error: runError,
+    progress: currentProgress, mode, runId, evidence, notice: runNotice,
+    refresh, select: selectSession, newChat, send: startRun, stop } = useChatStore();
   const [input, setInput] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [activities, setActivities] = useState<Activity[]>([]);
-  const [activityNote, setActivityNote] = useState<ActivityNote>("idle");
-  const [error, setError] = useState<string | null>(null);
-  const [progress, setProgress] = useState("");
+  const [localError, setError] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState(false);
   const [showActivity, setShowActivity] = useState(true);
-  const [mode, setMode] = useState("quick");
-  const [runId, setRunId] = useState("");
-  const [evidence, setEvidence] = useState<any>(null);
-  const [notice, setNotice] = useState("");
+  const [localNotice, setNotice] = useState("");
   const [saving, setSaving] = useState(false);
-  const abort = useRef<AbortController | null>(null);
   const viewport = useRef<HTMLDivElement>(null);
   const follow = useRef(true);
-  const toolCount = useRef(0);
-
-  const refresh = async () => setSessions(await sessionsApi.list());
+  const error = localError || runError;
+  const notice = localNotice || ({ completed: text("研究已保存到任务记录", "Research saved to task history"), incomplete: text("研究达到步数上限，结果不完整", "Step limit reached; research is incomplete"), stopped: text("已停止，可以修改问题后重试", "Stopped. Edit your question to retry."), "": "" })[runNotice];
+  const setMode = (value: string) => useChatStore.setState({ mode: value });
 
   useEffect(() => {
     refresh().catch(error => setError(error.message));
     const draft = new URLSearchParams(window.location.search).get("q");
     if (draft) setInput(draft.slice(0, 10000));
     if (window.matchMedia("(max-width: 1023px)").matches) setShowActivity(false);
-    return () => abort.current?.abort();
   }, []);
-  useEffect(() => { if (follow.current && viewport.current) viewport.current.scrollTop = viewport.current.scrollHeight; }, [messages, progress]);
 
   const stageLabel = (stage: string) => {
     const labels: Record<string, [string, string]> = {
@@ -66,6 +53,8 @@ export function AgentChat() {
       verify: ["正在核验数据来源和工具结果…", "Verifying sources and tool results…"],
       guardrail: ["正在应用金融风险护栏…", "Applying financial safety guardrails…"],
       waiting: ["仍在执行，请稍候…", "Still working; please wait…"],
+      starting: ["正在启动 Agent…", "Starting Agent…"],
+      answer: ["正在呈现最终回答…", "Displaying the final answer…"],
     };
     const pair = labels[stage];
     return pair ? text(pair[0], pair[1]) : text("正在执行…", "Working…");
@@ -76,25 +65,22 @@ export function AgentChat() {
     return pair ? text(pair[0], pair[1]) : tool;
   };
 
+  const progress = currentProgress.tool
+    ? `${toolLabel(currentProgress.tool)} · ${currentProgress.stage === "tool_started" ? text("执行中", "Running") : currentProgress.success ? text("已完成", "Completed") : text("失败", "Failed")}`
+    : stageLabel(currentProgress.stage);
+  useEffect(() => { if (follow.current && viewport.current) viewport.current.scrollTop = viewport.current.scrollHeight; }, [messages, progress]);
+
   const select = async (id: string) => {
     if (busy) return;
-    setSessionId(id);
-    const history = await sessionsApi.messages(id);
-    setMessages(history.map(message => ({ role: message.role as Message["role"], content: message.content })));
-    setActivities([]);
-    setRunId(""); setEvidence(null); setNotice("");
-    setActivityNote("idle");
+    await selectSession(id);
+    setNotice("");
     setError(null);
   };
 
   const create = () => {
     if (busy) return;
-    setSessionId(null);
-    setMessages([]);
-    setActivities([]);
-    setRunId(""); setEvidence(null); setNotice("");
-    setActivityNote("idle");
-    setProgress("");
+    newChat();
+    setNotice("");
     setError(null);
     setInput("");
   };
@@ -108,93 +94,16 @@ export function AgentChat() {
     await refresh();
   };
 
-  const finishActivity = (tool: string, success: boolean) => {
-    setActivities(old => {
-      const copy = [...old];
-      let index = -1;
-      for (let i = copy.length - 1; i >= 0; i -= 1) {
-        if (copy[i].tool === tool && copy[i].success === null) {
-          index = i;
-          break;
-        }
-      }
-      if (index >= 0) copy[index] = { ...copy[index], success };
-      else copy.push({ tool, success });
-      return copy;
-    });
-  };
-
   const send = async (event: FormEvent) => {
     event.preventDefault();
     const question = input.trim();
     if (!question || busy) return;
 
     setInput("");
-    setBusy(true);
-    setProgress(text("正在启动 Agent…", "Starting Agent…"));
     setError(null);
-    setRunId(""); setEvidence(null); setNotice("");
+    setNotice("");
     follow.current = true;
-    abort.current = new AbortController();
-    setActivities([]);
-    setActivityNote("deciding");
-    toolCount.current = 0;
-    setMessages(old => [...old, { role: "user", content: question }, { role: "assistant", content: "" }]);
-
-    try {
-      const activeSession = sessionId ?? (await sessionsApi.create()).id;
-      setSessionId(activeSession);
-      await streamChat(question, activeSession, (name, payload) => {
-        if (name === "run_started") {
-          setProgress(text("Agent 已开始执行…", "Agent run started…"));
-        }
-        if (name === "run_progress") {
-          setProgress(stageLabel(String(payload.stage ?? "")));
-        }
-        if (name === "tool_started") {
-          const tool = String(payload.tool);
-          toolCount.current += 1;
-          setActivityNote("idle");
-          setProgress(text(`正在执行：${toolLabel(tool)}…`, `Running: ${toolLabel(tool)}…`));
-          setActivities(old => [...old, { tool, success: null }]);
-        }
-        if (name === "tool_finished") {
-          const tool = String(payload.tool);
-          const success = Boolean(payload.success);
-          setProgress(success
-            ? text(`${toolLabel(tool)}已完成`, `${toolLabel(tool)} completed`)
-            : text(`${toolLabel(tool)}执行失败`, `${toolLabel(tool)} failed`));
-          finishActivity(tool, success);
-        }
-        if (name === "answer_delta") {
-          setProgress(text("正在生成最终回答…", "Composing the final answer…"));
-          setMessages(old => {
-            const copy = [...old];
-            const last = copy[copy.length - 1];
-            copy[copy.length - 1] = { ...last, content: last.content + String(payload.delta ?? "") };
-            return copy;
-          });
-        }
-        if (name === "run_finished") {
-          setRunId(String(payload.run_id)); setEvidence(payload.evidence ?? null);
-          if (toolCount.current === 0) setActivityNote("no-tools");
-          setNotice(payload.status === "completed" ? text("研究已保存到任务记录", "Research saved to task history") : text("研究达到步数上限，结果不完整", "Step limit reached; research is incomplete"));
-          setSessionId(String(payload.session_id));
-          refresh().catch(error => setError(error.message));
-        }
-        if (name === "error") {
-          setProgress("");
-          setError(String(payload.message ?? text("Agent 执行失败", "Agent run failed")));
-          refresh().catch(() => undefined);
-        }
-      }, { signal: abort.current!.signal, mode });
-    } catch (error) {
-      if ((error as Error).name === "AbortError") setNotice(text("已停止，可以修改问题后重试", "Stopped. Edit your question to retry."));
-      else setError((error as Error).message);
-    } finally {
-      setBusy(false);
-      setProgress("");
-    }
+    await startRun(question, mode);
   };
 
   return (
@@ -215,10 +124,11 @@ export function AgentChat() {
             <div key={session.id} className={`group flex items-center rounded-lg ${sessionId === session.id ? "bg-canvas" : "hover:bg-canvas"}`}>
               <button
                 onClick={() => select(session.id)}
-                className={`min-w-0 flex-1 truncate px-3 py-2.5 text-left text-sm ${sessionId === session.id ? "text-gold" : "text-muted group-hover:text-ink"}`}
+                className={`flex min-w-0 flex-1 items-center gap-2 px-3 py-2.5 text-left text-sm ${sessionId === session.id ? "text-gold" : "text-muted group-hover:text-ink"}`}
                 title={session.title}
               >
-                {locale === "en" && session.title === "新会话" ? "New chat" : session.title}
+                <span className="truncate">{locale === "en" && session.title === "新会话" ? "New chat" : session.title}</span>
+                {busy && sessionId === session.id && <Loader2 role="img" aria-label={text("会话正在运行", "Conversation running")} className="shrink-0 animate-spin text-gold" size={14}/>}
               </button>
               <button
                 onClick={() => remove(session)}
@@ -277,7 +187,7 @@ export function AgentChat() {
             <button disabled={busy || !input.trim()} className="focus-ring h-12 rounded-xl bg-gold px-5 text-sm font-medium text-black disabled:opacity-50">
               {busy ? text("执行中", "Running") : text("发送", "Send")}
             </button>
-            {busy && <button type="button" onClick={() => abort.current?.abort()} className="h-12 rounded-xl border border-negative/50 px-3 text-sm text-negative">{text("停止", "Stop")}</button>}
+            {busy && <button type="button" onClick={stop} className="h-12 rounded-xl border border-negative/50 px-3 text-sm text-negative">{text("停止", "Stop")}</button>}
           </div>
         </form>
         {error && <div className="shrink-0 border-t border-negative/40 p-3 text-sm text-negative">{error}</div>}
@@ -294,7 +204,7 @@ export function AgentChat() {
             <div key={`${activity.tool}-${index}`} className="rounded-lg border border-line p-3 text-sm">
               <div>{toolLabel(activity.tool)}</div>
               <div className={activity.success === null ? "text-warning" : activity.success ? "text-positive" : "text-negative"}>
-                {activity.success === null ? text("执行中", "Running") : activity.success ? text("已完成", "Completed") : text("失败", "Failed")}
+                {activity.success === null ? busy ? text("执行中", "Running") : text("未完成", "Not completed") : activity.success ? text("已完成", "Completed") : text("失败", "Failed")}
               </div>
             </div>
           ))}

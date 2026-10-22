@@ -4,11 +4,12 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { usePathname } from "next/navigation";
-import { BarChart3, Bot, Brain, FileText, FlaskConical, Gauge, Landmark, Newspaper, Settings, TrendingUp, ListChecks, Menu, X } from "lucide-react";
+import { BarChart3, Bot, Brain, FileText, FlaskConical, Gauge, Landmark, Newspaper, Settings, TrendingUp, ListChecks, Menu, X, Loader2 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { useLanguage } from "@/i18n/language";
 import { authApi } from "@/services/api/auth";
 import { useAuthStore } from "@/stores/auth";
+import { useChatStore } from "@/stores/chat";
 
 const navigation = [
   ["/dashboard", "仪表盘", "Dashboard", Gauge],
@@ -31,10 +32,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const isChat = pathname.startsWith("/chat");
   const { locale, setLocale, text } = useLanguage();
   const { tokens, hydrated, hydrate, setTokens } = useAuthStore();
+  const chatRunning = useChatStore(state => state.busy);
+  const running = <Loader2 role="img" aria-label={text("Agent 正在运行", "Agent running")} size={14} className="shrink-0 animate-spin text-gold"/>;
 
   useEffect(() => hydrate(), [hydrate]);
 
   const logout = async () => {
+    useChatStore.getState().reset();
     if (tokens?.refresh_token) await authApi.logout(tokens.refresh_token).catch(() => undefined);
     setTokens(null);
     queryClient.clear();
@@ -59,6 +63,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               )}
             >
               <Icon size={17}/>{text(zh, en)}
+              {href === "/chat" && chatRunning && running}
             </Link>
           ))}
         </nav>
@@ -113,6 +118,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             className={cn("min-w-0 flex-1 rounded-lg p-2 text-center text-[11px] text-muted", pathname.startsWith(href) && "text-gold")}
           >
             <Icon className="mx-auto mb-1" size={17}/>{text(zh, en)}
+            {href === "/chat" && chatRunning && <span className="flex justify-center">{running}</span>}
           </Link>
         ))}
         <button aria-expanded={more} onClick={() => setMore(v => !v)} className="flex-1 rounded-lg p-2 text-center text-[11px] text-muted"><Menu className="mx-auto mb-1" size={17}/>{text("更多", "More")}</button>

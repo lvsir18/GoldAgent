@@ -99,6 +99,32 @@ test("mobile More exposes every feature and templates only draft questions", asy
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy();
 });
 
+test("chat keeps running across navigation and shows navigation/session indicators", async ({ page }) => {
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  let calls = 0;
+  await page.route("**/api/v1/chat/stream", async route => {
+    calls++;
+    await gate;
+    await route.fulfill({status:200,contentType:"text/event-stream",body:'event: answer_delta\ndata: {"delta":"离开页面后仍然完成"}\n\nevent: run_finished\ndata: {"run_id":"r-nav","session_id":"session-1","status":"completed"}\n\n'});
+  });
+  await page.goto("/chat");
+  await page.getByRole("textbox").fill("后台运行测试");
+  await page.getByRole("button",{name:"发送",exact:true}).click();
+  await expect(page.getByRole("img",{name:"Agent 正在运行",exact:true}).first()).toBeVisible();
+  await page.getByRole("button",{name:"会话历史",exact:true}).click();
+  await expect(page.getByRole("img",{name:"会话正在运行",exact:true})).toBeVisible();
+  await page.getByRole("link",{name:"市场新闻",exact:true}).click();
+  await expect(page).toHaveURL(/\/news$/);
+  await expect(page.getByRole("img",{name:"Agent 正在运行",exact:true}).first()).toBeVisible();
+  await page.locator('aside nav a[href="/chat"]').click();
+  await expect(page.getByRole("button",{name:"停止",exact:true})).toBeVisible();
+  release();
+  await expect(page.getByText("离开页面后仍然完成",{exact:true})).toBeVisible();
+  await expect(page.getByRole("img",{name:"Agent 正在运行",exact:true})).toHaveCount(0);
+  expect(calls).toBe(1);
+});
+
 test("a completed chat saves a research report with preview and authenticated download", async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem("goldagent.auth", JSON.stringify({access_token:"isolated-fixture-token",refresh_token:"fixture-refresh",token_type:"bearer",expires_in:60})));
   const report = { id:"report-1",title:"分析黄金",report_type:"analysis",created_at:new Date().toISOString(),content:"# 测试研究\n\n## 研究结论\n\n已核查的模拟结果。" };
