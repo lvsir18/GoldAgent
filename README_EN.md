@@ -45,7 +45,7 @@ The hard part of a financial Agent is not generating market commentary. It is bu
 | Agent | LangGraph loop, autonomous typed-tool selection, retries, timeouts, verification, guardrails, checkpoints |
 | Tools | **8** tools for price, history, indicators, news, forecast, portfolio, backtest and knowledge |
 | API | **49** FastAPI routes |
-| Quality | **55** offline eval cases and **29** backend/frontend tests, plus Playwright E2E |
+| Quality | **63 scenarios / 12 categories**, offline workflow regression and opt-in real-model evaluation; pytest, Vitest, Playwright and CI |
 | Product | Dashboard, Analysis, Agent Chat, Forecast, Backtest, Portfolio, News, Knowledge and Reports |
 
 ## Product Screens
@@ -92,6 +92,8 @@ flowchart LR
 - **Frontend:** Next.js 15, React 19, TypeScript, Tailwind, TanStack Query, Zustand, ECharts and SSE Agent Activity.
 - **Security & operations:** JWT/refresh tokens, PBKDF2, CORS, rate limits, request IDs, structured logs, health/readiness probes and non-root containers.
 - **Quality:** pytest, Vitest, React Testing Library, Playwright, deterministic Agent evals and GitHub Actions.
+
+The evaluation harness distinguishes oracle-driven workflow replay from real-model capability. It uses synthetic holdings and frozen evidence, checks typed arguments, numeric results, citations, failure handling and safety proxies, and records latency, tokens and coverage. Replay never calls paid APIs. See the [evaluation guide](evals/README.md) and [first evaluation findings](docs/AGENT_EVALUATION.md) (Chinese); rule acceptance is not an investment-performance or expert-quality score.
 
 ## Quick Start
 

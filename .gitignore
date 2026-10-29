@@ -85,6 +85,9 @@ reports/*.md
 reports/*.pdf
 reports/*.html
 
+# Agent 原始轨迹与审核资料可能包含用户上下文；公开结论单独写入 docs。
+/evals/reports/
+
 # 本地规划与改进草稿（不纳入开源仓库）
 /GoldAgent_Full_Optimization_Prompt.md
 /IMPROVEMENT_REPORT.md

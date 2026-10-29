@@ -6,26 +6,47 @@ import argparse
 import json
 from pathlib import Path
 
-from evals.evaluators.core import EvaluationCase, RunRecord, evaluate_case, summarize
-
-
-def load_jsonl(path: Path, schema):
-    return [schema.model_validate_json(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+from evals.models import RunRecord
+from evals.reporting import load_jsonl, load_cases, build_report, write_report
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset", type=Path, default=Path("evals/datasets/goldagent_cases.jsonl"))
     parser.add_argument("--runs", type=Path, required=True, help="Recorded Agent run JSONL")
-    parser.add_argument("--output", type=Path, default=Path("evals/reports/latest.json"))
+    parser.add_argument("--output", type=Path, default=Path("data/evals/rescored/report.json"))
+    parser.add_argument("--suite", choices=["full", "smoke"], default="full")
+    parser.add_argument("--case-ids", help="Explicit comma-separated subset")
+    parser.add_argument("--repeats", type=int, default=1)
+    parser.add_argument("--manifest", type=Path, help="Original report: verifies dataset, mode and repeat provenance")
+    parser.add_argument("--allow-contract-update", action="store_true", help="Explicitly rescore an unchanged recording with revised contracts; record both hashes")
     args = parser.parse_args()
-    cases = {case.id: case for case in load_jsonl(args.dataset, EvaluationCase)}
+    cases = load_cases(args.dataset,args.suite,args.case_ids.split(",") if args.case_ids else None)
     runs = load_jsonl(args.runs, RunRecord)
-    results = [evaluate_case(cases[run.case_id], run) for run in runs if run.case_id in cases]
-    payload = {"summary": summarize(results), "cases": [item.model_dump() for item in results]}
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(json.dumps(payload["summary"], ensure_ascii=False, indent=2))
+    metadata = {"engine":"recorded", "measures_model_quality":False}
+    if args.manifest:
+        original = json.loads(args.manifest.read_text(encoding="utf-8"))
+        metadata = original["manifest"]
+        if metadata["repeats"] != args.repeats or set(metadata["case_ids"]) != {c.id for c in cases}:
+            raise ValueError("Original manifest does not match selected cases/repeats")
+    report = build_report(cases,runs,repeats=args.repeats,metadata=metadata)
+    if args.manifest:
+        for field in ("execution_sha256","fixture_sha256"):
+            if original["manifest"].get(field) and report["manifest"][field] != original["manifest"][field]:
+                raise ValueError(f"Execution inputs changed ({field}); rerun Agent instead of rescoring")
+        report["manifest"]["execution_inputs_verified"] = bool(original["manifest"].get("execution_sha256"))
+    if args.manifest and report["manifest"]["dataset_sha256"] != original["manifest"]["dataset_sha256"]:
+        if not args.allow_contract_update:
+            raise ValueError("Dataset changed since original execution; explicit --allow-contract-update required")
+        report["manifest"]["rescored_from_dataset_sha256"] = original["manifest"]["dataset_sha256"]
+        report["manifest"]["contract_update"] = True
+    if args.manifest:
+        report["manifest"]["original_evaluator_sha256"] = original["manifest"].get("evaluator_sha256")
+        report["manifest"]["original_report"] = str(args.manifest)
+        report["manifest"]["executed_at"] = original["manifest"].get("executed_at",original["manifest"].get("created_at"))
+    write_report(report,args.output)
+    print(json.dumps({"coverage":report["coverage"],"summary":report["summary"]},ensure_ascii=False,indent=2))
+    raise SystemExit(0 if report["coverage"]["complete"] and report["summary"].get("task_success") == 1 else 1)
 
 
 if __name__ == "__main__": main()

@@ -16,6 +16,14 @@ jobs:
       - run: pip install -c requirements.lock -e ".[dev]"
       - run: python -m compileall -q src backend evals mcp_servers
       - run: pytest --cov=backend --cov=src --cov-report=term-missing
+      - name: Offline Agent workflow contracts (no API keys)
+        run: python -m evals.runners.benchmark --engine replay --suite full --output-dir data/evals/ci
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: agent-evaluation-offline
+          path: data/evals/ci/
+          if-no-files-found: warn
 
   frontend:
     runs-on: ubuntu-latest

@@ -61,7 +61,7 @@ GoldAgent 将这些问题拆成一套可落地的工程方案：
 | 工具 | **8 个**类型化工具：现价、历史行情、技术指标、新闻、预测、持仓、回测、知识库 |
 | 产品 | Dashboard、Market Analysis、Agent Chat、Forecast、Backtest、Portfolio、News、Knowledge、Reports、Research Tasks、Settings |
 | API | **49 个** FastAPI 路由，覆盖认证、会话、市场、Agent、资产与知识库 |
-| 质量 | **55 条**离线评测样例、**29 个**后端/前端测试用例、Playwright E2E、GitHub Actions |
+| 质量 | **63 条 / 12 类** Agent 评测场景，离线工作流回归 + 真实模型测评，pytest / Vitest / Playwright / GitHub Actions |
 | 交付 | Python 3.12、Node.js 22、PostgreSQL 16 + pgvector、Docker Compose |
 
 ## 产品界面
@@ -307,11 +307,14 @@ npm run test:e2e
 
 # Offline Agent evaluation（不调用付费 API）
 Set-Location ..
+python -m evals.runners.benchmark --engine replay --suite full
+
+# 重新评分已有运行记录（不调用模型）
 python -m evals.runners.run_evals --runs path/to/recorded-runs.jsonl
 python -m evals.runners.compare baseline.json candidate.json
 ```
 
-评测不仅判断答案文本，还检查工具选择、参数、执行结果、数据来源、风险表达、延迟、Token 与成本。详见 [`evals/README.md`](evals/README.md)。
+评测检查工具选择与顺序、真实参数 Schema、计算数值、引用来源与时间、故障降级、协议泄漏、金融安全规则及延迟与 Token。离线回放验证工具链，**不能代表模型能力**；真实模型需要显式 `--engine model --allow-paid`，使用合成上下文并限制预算。费用未知时标记 N/A，不猜测定价。详见[运行说明](evals/README.md)与[首轮测评及改进结论](docs/AGENT_EVALUATION.md)。
 
 ## 关键工程取舍
 
