@@ -107,7 +107,7 @@ class OpenAICompatibleGateway(LLMGateway):
             base_url=self.base_url, temperature=self.temperature,
             max_tokens=min(self.max_tokens, self.planning_max_tokens) if phase == "plan" else self.max_tokens,
             timeout_seconds=self.timeout_seconds, bound_tools=None,
-            thinking="disabled" if phase == "plan" else "enabled", planning_max_tokens=self.planning_max_tokens)
+            thinking="disabled" if phase in {"plan", "quick", "quick_synthesize"} else "enabled", planning_max_tokens=self.planning_max_tokens)
         gateway._client = self._client
         return gateway
 

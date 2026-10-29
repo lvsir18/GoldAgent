@@ -69,7 +69,7 @@ def build_tool_registry(
     timeout = services.settings.agent.tool_timeout_seconds
 
     async def get_gold_spot_price(symbol: str = "AU0", market: str = "CN", period: str = "3y") -> dict:
-        """Get the latest gold price and truthful source/freshness metadata."""
+        """Get the latest gold price and truthful source/freshness metadata. Not needed when the user supplies the calculation price or another requested tool already provides it."""
         result = await services.market.summary(symbol, market, period)
         return result.model_dump(mode="json")
 
@@ -93,18 +93,21 @@ def build_tool_registry(
         symbol: str = "AU0", market: str = "CN", period: str = "3y",
         horizon: int = 5, model: str = "exponential", lookback: int | None = None,
     ) -> dict:
-        """Run a baseline gold forecast clearly labelled as a model estimate."""
+        """Run a baseline gold forecast. Already includes current price and historical error metrics; MAE/RMSE are NOT future price bounds or confidence intervals."""
         provider_frame = await services.market.history_frame(symbol, market, period)
         request = ForecastRequest(symbol=symbol, horizon=horizon, model=model, lookback=lookback)
         result = await asyncio.to_thread(services.forecast.evaluated_forecast, provider_frame.frame, provider_frame.metadata, request)
-        return result.model_dump(mode="json")
+        return {**result.model_dump(mode="json"), "interpretation": {
+            "confidence_interval_available": False,
+            "error_metrics": "MAE/RMSE describe historical forecast errors, not a future +/- price range or confidence interval.",
+        }}
 
     async def analyze_portfolio(
         current_price: float, grams: float | None = None, average_cost: float | None = None,
         planned_investment: float | None = None, horizon: str | None = None,
         risk_level: str | None = None,
     ) -> dict:
-        """Analyze PnL using the user's saved portfolio by default; never place trades."""
+        """Calculate unrealized holding PnL, not realized profit. Explicit current-turn price/grams/cost override saved defaults; do not substitute another quote for a user-specified scenario. If holdings are missing, ask for them first. Never place trades."""
         saved = portfolio_context or {}
         resolved_grams = saved.get("grams") if grams is None else grams
         resolved_cost = saved.get("average_cost") if average_cost is None else average_cost
@@ -117,7 +120,8 @@ def build_tool_registry(
             horizon=horizon or (risk_profile or {}).get("horizon", "medium"),
             risk_level=risk_level or (risk_profile or {}).get("risk_level", "balanced"),
         )
-        return services.portfolio.analyze(portfolio, current_price).model_dump(mode="json")
+        return {**services.portfolio.analyze(portfolio, current_price).model_dump(mode="json"),
+            "pnl_type": "unrealized", "realized_pnl_available": False}
 
     async def run_backtest(
         symbol: str = "AU0", market: str = "CN", period: str = "3y", strategy: str = "ma_cross",
@@ -145,7 +149,7 @@ def build_tool_registry(
     ]
     if knowledge is not None and user_id is not None:
         async def retrieve_financial_knowledge(query: str, top_k: int = 5, document_id: str | None = None) -> dict:
-            """Retrieve tenant-scoped long-term knowledge with chunk-level sources."""
+            """Retrieve tenant-scoped document evidence with chunk-level sources. Use for questions about saved/uploaded documents or research notes, not for basic terminology that needs no retrieval."""
             items = await knowledge.search(user_id, query, top_k, document_id)
             return {"query": query, "results": items, "source": "Knowledge Base"}
         specs.append(("retrieve_financial_knowledge", retrieve_financial_knowledge, KnowledgeQuery))

@@ -94,3 +94,11 @@ CLI 退出码 1 也可能表示“评测成功执行但模型未通过合同”�
 日常 CI 运行评分器单测和 63 条 replay，不需要任何线上 Key；自动保留评测 artifact。付费模型评测须显式本地启动，不在每次 push 中触发。修改模型/提示词/编排前先冻结数据和评分合同，建议真实 full + 每题至少 3 次、比较 quick/deep 的相同样本并审核开放式答案。
 
 本轮[首测结论](../docs/AGENT_EVALUATION.md)将原始失败、评分误判修正、实际能力问题和测试边界分别说明，避免把严格规则分数当作上线质量或多 Agent 改造的直接依据。
+
+后续[优化与同题复测](../docs/AGENT_OPTIMIZATION.md)保留了完整迭代和失败记录。主基准仍为 63 条；另有一个不并入主成绩的明确新闻故障样本：
+
+```powershell
+python -m evals.runners.benchmark --engine replay --dataset evals/datasets/news_failure_explicit.jsonl
+```
+
+引用提取修复后，旧模型轨迹可重新评分而无需再次消费模型。比较必须两端使用同一个评分器版本，不得把不同版本的报告直接比作模型提升。

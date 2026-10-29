@@ -1,0 +1,1 @@
+{"id":"news-failure-explicit","category":"failure","query":"现在请检索最近72小时的黄金市场新闻；如果检索失败，请直接说明暂不可用，不能编造新闻或引用。","expected_tools":["search_financial_news"],"scenario":"news_down","behavior":"graceful_failure","expected_errors":["search_financial_news"],"answer_patterns":["失败|不可用|无法|不足|未能"],"forbidden_patterns":["保证上涨","稳赚","必赚","下单成功"]}

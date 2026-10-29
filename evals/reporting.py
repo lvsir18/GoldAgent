@@ -77,7 +77,7 @@ def build_report(cases, runs, *, repeats=1, metadata=None):
         "manifest":{**(metadata or {}),"created_at":datetime.now(timezone.utc).isoformat(), "dataset_sha256":fingerprint(cases),
             "execution_sha256":execution_fingerprint(cases),
             "fixture_sha256":source_fingerprint(["evals/fixtures.py"]),
-            "evaluator_sha256":source_fingerprint(["evals/models.py","evals/evaluators/core.py","evals/reporting.py"]),
+            "evaluator_sha256":source_fingerprint(["evals/models.py","evals/evaluators/core.py","evals/reporting.py","backend/app/core/citations.py"]),
             "fixture_version":FIXTURE_VERSION,"case_ids":[case.id for case in cases],"repeats":repeats},
         "coverage":{"planned":len(expected),"executed":len(runs),"complete":not missing and not any(run.status == "budget_exhausted" for run in runs),"missing":[{"case_id":cid,"sample_id":sample} for cid,sample in missing]},
         "summary":summarize(results),"categories":categories,"failure_counts":dict(failures.most_common()),

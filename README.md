@@ -314,7 +314,7 @@ python -m evals.runners.run_evals --runs path/to/recorded-runs.jsonl
 python -m evals.runners.compare baseline.json candidate.json
 ```
 
-评测检查工具选择与顺序、真实参数 Schema、计算数值、引用来源与时间、故障降级、协议泄漏、金融安全规则及延迟与 Token。离线回放验证工具链，**不能代表模型能力**；真实模型需要显式 `--engine model --allow-paid`，使用合成上下文并限制预算。费用未知时标记 N/A，不猜测定价。详见[运行说明](evals/README.md)与[首轮测评及改进结论](docs/AGENT_EVALUATION.md)。
+评测检查工具选择与顺序、真实参数 Schema、计算数值、引用来源与时间、故障降级、协议泄漏、金融安全规则及延迟与 Token。离线回放验证工具链，**不能代表模型能力**；真实模型需要显式 `--engine model --allow-paid`，使用合成上下文并限制预算。费用未知时标记 N/A，不猜测定价。详见[运行说明](evals/README.md)、[首轮测评](docs/AGENT_EVALUATION.md)与[评测驱动优化及同题对比](docs/AGENT_OPTIMIZATION.md)。
 
 ## 关键工程取舍
 

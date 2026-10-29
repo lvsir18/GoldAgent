@@ -5,9 +5,11 @@ import json
 import re
 from datetime import datetime
 from statistics import mean
+from urllib.parse import unquote
 from pydantic import ValidationError
 
 from backend.app.llm.protocol import has_tool_protocol
+from backend.app.core.citations import cited_urls
 from evals.models import EvaluationCase, RunRecord, EvaluationResult, CheckResult
 from evals.tool_contracts import SCHEMAS
 
@@ -62,7 +64,7 @@ def _satisfies(args: dict, check) -> bool:
 
 
 def _urls(value: str) -> set[str]:
-    return {url.rstrip(").,;") for url in re.findall(r"https?://[^\s<>\]\"'，。；、！？]+", value)}
+    return cited_urls(value)
 
 
 def evaluate_case(case: EvaluationCase, run: RunRecord) -> EvaluationResult:
@@ -133,8 +135,8 @@ def evaluate_case(case: EvaluationCase, run: RunRecord) -> EvaluationResult:
             continue
         for article in output.get("articles", []):
             if article.get("url"):
-                known_urls.add(str(article["url"]))
-                news_dates[str(article["url"])] = article.get("published_at")
+                known_urls.add(unquote(str(article["url"])))
+                news_dates[unquote(str(article["url"]))] = article.get("published_at")
         for chunk in output.get("results", []):
             filename = chunk.get("metadata", {}).get("filename")
             if filename:

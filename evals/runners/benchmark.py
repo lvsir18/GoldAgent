@@ -76,7 +76,7 @@ async def run_benchmark(cases, settings, engine, budget, repeats, concurrency, o
         "research_mode":settings.agent.research_mode,"git_revision":revision,
         "working_tree_dirty":dirty,
         "runtime_sha256":source_fingerprint(sorted(path.relative_to(ROOT).as_posix()
-            for folder in ("backend/app/agent","backend/app/tools","backend/app/services","backend/app/llm")
+            for folder in ("backend/app/agent","backend/app/tools","backend/app/services","backend/app/llm","backend/app/core")
             for path in (ROOT / folder).rglob("*.py")) + ["src/settings.py","config.yaml"]),
         "measures_model_quality":engine == "model", "data_policy":"synthetic-only; no application DB or external market/news calls",
         "agent_config":settings.agent.model_dump(mode="json",exclude={"api_url"}),"concurrency":concurrency}

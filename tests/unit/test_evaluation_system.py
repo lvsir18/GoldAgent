@@ -102,6 +102,20 @@ def test_citation_provenance_time_and_chinese_punctuation():
         assert "citation_time_window" in evaluate_case(c,news_record(date=date)).failures
 
 
+@pytest.mark.parametrize("suffix", ["（2026-10-29）：政策路径不确定", "（example.com，2026-10-29）", "— source"])
+def test_markdown_citation_does_not_swallow_chinese_source_or_date(suffix):
+    c = case(expected_tools=["search_financial_news"],require_url_citation=True)
+    r = news_record().model_copy(update={"answer":f"[资料](https://example.com/a){suffix}"})
+    assert evaluate_case(c,r).task_success == 1
+
+
+def test_encoded_parentheses_in_real_source_urls_remain_citable():
+    c = case(expected_tools=["search_financial_news"],require_url_citation=True)
+    r = news_record(url="https://example.com/a%28b%29")
+    r.tool_calls[0]["output"]["articles"][0]["url"] = "https://example.com/a%28b%29"
+    assert evaluate_case(c,r).task_success == 1
+
+
 def test_coverage_identity_repeats_and_authoritative_fingerprint():
     c = case()
     report = build_report([c],[],metadata={"dataset_sha256":"fake"})

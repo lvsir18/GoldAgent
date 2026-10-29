@@ -93,7 +93,7 @@ flowchart LR
 - **Security & operations:** JWT/refresh tokens, PBKDF2, CORS, rate limits, request IDs, structured logs, health/readiness probes and non-root containers.
 - **Quality:** pytest, Vitest, React Testing Library, Playwright, deterministic Agent evals and GitHub Actions.
 
-The evaluation harness distinguishes oracle-driven workflow replay from real-model capability. It uses synthetic holdings and frozen evidence, checks typed arguments, numeric results, citations, failure handling and safety proxies, and records latency, tokens and coverage. Replay never calls paid APIs. See the [evaluation guide](evals/README.md) and [first evaluation findings](docs/AGENT_EVALUATION.md) (Chinese); rule acceptance is not an investment-performance or expert-quality score.
+The evaluation harness distinguishes oracle-driven workflow replay from real-model capability. It uses synthetic holdings and frozen evidence, checks typed arguments, numeric results, citations, failure handling and safety proxies, and records latency, tokens and coverage. Replay never calls paid APIs. See the [evaluation guide](evals/README.md), [first evaluation findings](docs/AGENT_EVALUATION.md), and [evaluation-driven improvements](docs/AGENT_OPTIMIZATION.md) (Chinese); rule acceptance is not an investment-performance or expert-quality score.
 
 ## Quick Start
 
