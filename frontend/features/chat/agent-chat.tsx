@@ -49,6 +49,7 @@ export function AgentChat() {
       answer: ["正在呈现最终回答…", "Displaying the final answer…"],
       plan: ["正在并行采集研究证据…", "Collecting research evidence…"],
       synthesize: ["证据已就绪，正在深度综合结论…", "Evidence ready; synthesizing the research…"],
+      response_repair: ["正在重新校验研究请求…", "Checking the research request again…"],
     };
     const pair = labels[stage];
     return pair ? text(pair[0], pair[1]) : text("正在执行…", "Working…");

@@ -13,11 +13,13 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, Tool
 from langchain_core.tools import StructuredTool
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
+from pydantic import BaseModel, ValidationError
 
 from src.settings import AppSettings
 
 from ..llm.base import LLMGateway
 from ..llm.gateway import build_llm_gateway
+from ..llm.protocol import has_tool_protocol
 from ..tools.registry import ToolRegistry, build_tool_registry
 from .guardrails import apply_financial_guardrail, verify_tool_results
 from .prompts import build_system_prompt
@@ -93,6 +95,9 @@ class GoldAgentRuntime:
                     update["status"] = "max_steps"
                 return update
             update = await self._model_response(state, "plan")
+            if update.get("status") == "incomplete":
+                # A failed/truncated plan is NOT evidence that no tools are needed.
+                return update
             if update["messages"][-1].tool_calls:
                 return update
             # READY is a control signal, not a user-facing answer or extra
@@ -113,19 +118,40 @@ class GoldAgentRuntime:
             messages[0] = SystemMessage(content=str(messages[0].content) + instruction)
         await self._emit("run_progress", stage=phase, step=step, message="正在采集研究证据…" if phase == "plan" else "正在综合研究结论…" if phase == "synthesize" else "模型正在规划或生成分析…")
         gateway = self.gateway.for_phase(phase) if phase in {"plan", "synthesize"} and hasattr(self.gateway, "for_phase") else self.gateway
-        started = time.perf_counter()
         selected_tools = [] if phase == "synthesize" else [*self.tools.tools, self._complete_tool] if phase == "plan" else self.tools.tools
-        response = await gateway.chat(messages, selected_tools)
-        elapsed = (time.perf_counter() - started) * 1000
-        if phase == "synthesize" and response.tool_calls:
-            raise RuntimeError("Final synthesis unexpectedly requested tools")
+        usage = dict(state.get("usage", {}))
+        performance = list(state.get("performance", []))
+        # One repair at most; it consumes the same run deadline and model-call
+        # budget, and planning must leave a response for evidence synthesis.
+        for attempt in range(2):
+            started = time.perf_counter()
+            response = await gateway.chat(messages, selected_tools)
+            issue = self._response_issue(response, phase, selected_tools)
+            performance.append({"phase": phase, "duration_ms": round((time.perf_counter() - started) * 1000),
+                "input_chars": sum(len(str(m.content)) for m in messages), "finish_reason": response.finish_reason,
+                "repair_attempt": attempt, "response_issue": issue})
+            for key in ("prompt_tokens", "completion_tokens", "reasoning_tokens", "cached_tokens"):
+                usage[key] = usage.get(key, 0) + (getattr(response, key, None) or 0)
+            if not issue:
+                break
+            reserve = 1 if phase == "plan" else 0
+            if attempt == 0 and step + reserve < state.get("max_steps", self.settings.agent.max_steps):
+                await self._emit("run_progress", stage="response_repair", message="正在重新校验研究请求…")
+                # Do not echo the invalid response or execute/alias XML names.
+                contract = ("仅使用当前接口提供的 tools，通过原生 tool_calls 返回调用；工具名及参数必须符合提供的 Schema。"
+                    "不要输出 XML、伪造工具标签、旧工具名或分析正文。若确实无需查询，输出 READY。"
+                    if selected_tools else
+                    "当前是最终回答阶段，没有可调用工具。只输出有已有证据支持的分析正文；不得输出工具指令。缺少资料时明确说明，不能假装已经查询。")
+                messages = [SystemMessage(content=str(messages[0].content) + "\n上一响应不符合本阶段协议或被截断，请重新生成。" + contract), *messages[1:]]
+                step += 1
+                continue
+            return {"messages": [*state["messages"], AIMessage(content="本次研究请求未能正确完成，尚未生成可用结论。请重新发送问题或缩小研究范围；已获取的资料不代表完整分析。")],
+                "current_step": step, "usage": usage, "performance": performance, "status": "incomplete"}
         await self._emit("run_progress", stage="llm_complete", step=step, message="模型响应完成，正在处理结果…")
         tool_calls = [
             {"id": call.id, "name": call.name, "args": call.arguments, "type": "tool_call"}
             for call in response.tool_calls
         ]
-        usage = {key: state.get("usage", {}).get(key, 0) + (getattr(response, key, None) or 0)
-            for key in ("prompt_tokens", "completion_tokens", "reasoning_tokens", "cached_tokens")}
         extra = {"reasoning_content": response.reasoning_content} if response.reasoning_content else {}
         content = response.content
         incomplete = response.finish_reason in {"length", "content_filter", "repetition_truncation"}
@@ -134,8 +160,36 @@ class GoldAgentRuntime:
         return {"messages": [*state["messages"], AIMessage(content=content, tool_calls=tool_calls, additional_kwargs=extra)],
             "current_step": step, "usage": usage,
             "status": "incomplete" if incomplete else state.get("status", "running"),
-            "performance": [*state.get("performance", []), {"phase": phase, "duration_ms": round(elapsed),
-                "input_chars": sum(len(str(m.content)) for m in messages), "finish_reason": response.finish_reason}]}
+            "performance": performance}
+
+    @staticmethod
+    def _response_issue(response, phase, tools) -> str | None:
+        if getattr(response, "protocol_error", None):
+            return response.protocol_error
+        if has_tool_protocol(response.content):
+            return "textual_tool_protocol"
+        if phase == "synthesize" and response.tool_calls:
+            return "tools_during_synthesis"
+        truncated = response.finish_reason in {"length", "content_filter", "repetition_truncation"}
+        if truncated and (phase == "plan" or response.tool_calls):
+            return "truncated_plan_or_calls"
+        allowed = {tool.name: tool for tool in tools}
+        for call in response.tool_calls:
+            if not isinstance(call.name, str) or call.name not in allowed:
+                return "unregistered_tool"
+            if not isinstance(call.arguments, dict):
+                return "invalid_tool_arguments"
+            schema = allowed[call.name].args_schema
+            if isinstance(schema, type) and issubclass(schema, BaseModel):
+                try:
+                    schema.model_validate(call.arguments)
+                except ValidationError:
+                    return "invalid_tool_arguments"
+        if not response.tool_calls and not response.content.strip():
+            return "empty_response"
+        if response.finish_reason == "tool_calls" and not response.tool_calls:
+            return "missing_tool_calls"
+        return None
 
     def _after_supervisor(self, state: GoldAgentState) -> str:
         last = state["messages"][-1]

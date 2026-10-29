@@ -11,6 +11,16 @@ const zh = (cn: string, _en: string) => cn;
 const en = (_cn: string, english: string) => english;
 
 describe("user-facing presentation boundary", () => {
+  it.each([
+    '<tool_call><function=goldspot_query_gold_price><parameter=product_type>国内期货</parameter></function></tool_call>',
+    '<tool_call><function=goldspot_query_gold_price',
+    '&lt;tool_call&gt;&lt;function=goldspot_query_gold_price&gt;',
+    '```xml\n<tool_call><function=goldspot_query_gold_price></function></tool_call>\n```',
+  ])("replaces unexecuted tool envelopes with an explicit retry notice", leaked => {
+    const content = publicAnswer(leaked + "\n\n仅供参考。");
+    expect(content).toContain("未执行的工具指令");
+    expect(content).not.toMatch(/goldspot_|<tool_call>|<function=/);
+  });
   it.each([zh, en])("does not echo raw exceptions or unknown tool identifiers", text => {
     expect(userError(new Error(diagnostic), text)).not.toContain("INTERNAL_CANARY");
     expect(userError({status:422, message:diagnostic}, text)).not.toContain("ValidationError");

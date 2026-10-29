@@ -2,6 +2,7 @@
 from copy import deepcopy
 import json
 from typing import Any
+from ..core.presentation import public_answer
 
 
 def _sample(values: list, limit: int) -> list:
@@ -43,7 +44,8 @@ def bounded_history(history: list[dict[str, str]], max_chars: int = 24000) -> li
     for item in reversed(history[-30:]):
         if item.get("role") not in {"user", "assistant"}:
             continue
-        content = item["content"]
+        content = public_answer(item["content"]) if item["role"] == "assistant" else item["content"]
+        item = {**item, "content": content}
         if size + len(content) > max_chars:
             if not selected:
                 selected.append({**item, "content": content[-max_chars:] + "\n[Earlier content omitted by the context budget]"})

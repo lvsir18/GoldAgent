@@ -25,6 +25,17 @@ async def test_llm_adapter_parses_tool_calls(monkeypatch):
     assert result.prompt_tokens == 10
 
 
+@pytest.mark.parametrize("arguments", ['{"symbol":', '[]', 'null', ["AU0"]])
+async def test_malformed_arguments_cannot_silently_become_a_default_call(monkeypatch, arguments):
+    async def fake_post(self, *args, **kwargs):
+        payload = {"choices":[{"message":{"tool_calls":[{"id":"bad", "function":{"name":"get_gold_spot_price", "arguments":arguments}}]}, "finish_reason":"tool_calls"}]}
+        return httpx.Response(200, json=payload, request=httpx.Request("POST", "https://llm.invalid/chat/completions"))
+    monkeypatch.setattr(httpx.AsyncClient, "post", fake_post)
+    gateway = OpenAICompatibleGateway(provider="fixture",model="fixture",api_key="fixture",base_url="https://llm.invalid")
+    result = await gateway.chat([HumanMessage(content="fixture")])
+    assert result.protocol_error == "invalid_tool_arguments"
+
+
 async def test_llm_adapter_enforces_total_timeout(monkeypatch):
     async def slow_post(self, *args, **kwargs):
         await asyncio.sleep(0.05)

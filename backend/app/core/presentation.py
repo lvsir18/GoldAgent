@@ -1,5 +1,6 @@
 """User-facing research facts, separate from private diagnostic records."""
 import re
+from ..llm.protocol import has_tool_protocol, strip_tool_protocol, PROTOCOL_NOTICE
 
 TOOL_NAMES = {
     "get_gold_spot_price": "黄金现价", "get_market_history": "历史行情",
@@ -30,6 +31,8 @@ def source_name(name: str | None) -> str:
 
 
 def public_answer(answer: str) -> str:
+    if has_tool_protocol(answer):
+        answer = PROTOCOL_NOTICE + "\n\n" + strip_tool_protocol(answer)
     # Migrate only the old generated diagnostic footer; leave ordinary prose intact.
     def replace(match):
         footer = match.group()

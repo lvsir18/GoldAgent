@@ -8,6 +8,19 @@ from backend.app.api.routes.reports import public_content
 DIAGNOSTIC = "ValidationError Traceback postgres://private-host INTERNAL_CANARY"
 
 
+def test_legacy_tool_markup_does_not_leak_through_reports_or_guardrails():
+    from backend.app.core.presentation import public_answer
+    leaked = '<tool_call><function=goldspot_query_gold_price><parameter=product_type>国内期货</parameter></function></tool_call>'
+    for value in [leaked, leaked.replace("<", "&lt;").replace(">", "&gt;"), '<tool_call><function=goldspot_query_gold_price']:
+        content = public_answer(value + "\n仅供参考。")
+        assert "goldspot_" not in content and "<tool_call>" not in content
+        assert "未执行的工具指令" in content
+    report = ReportService().render_markdown("analysis", "fixture", {"final_answer":leaked})
+    assert "goldspot_" not in report and "未执行的工具指令" in report
+    answer, flags = apply_financial_guardrail(leaked, None, False)
+    assert "goldspot_" not in answer and "invalid_tool_protocol" in flags
+
+
 def test_failed_tools_keep_details_out_of_answer_and_evidence():
     results = [{"tool":"get_market_history", "error":DIAGNOSTIC, "arguments":{"context":"PRIVATE_ARGUMENT_CANARY"}}]
     verification = verify_tool_results(results)

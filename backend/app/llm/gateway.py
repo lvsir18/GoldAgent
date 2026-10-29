@@ -163,14 +163,23 @@ class OpenAICompatibleGateway(LLMGateway):
         payload = response.json()
         choice = payload.get("choices", [{}])[0]
         message = choice.get("message", {})
-        calls = []
-        for call in message.get("tool_calls", []) or []:
-            function = call.get("function", {})
+        calls, protocol_error = [], None
+        raw_calls = message.get("tool_calls") or []
+        if not isinstance(raw_calls, list):
+            raw_calls, protocol_error = [], "invalid_tool_calls_shape"
+        for call in raw_calls:
+            if not isinstance(call, dict) or not isinstance(call.get("function"), dict):
+                protocol_error = "invalid_tool_calls_shape"
+                continue
+            function = call["function"]
             raw_arguments = function.get("arguments", "{}")
             try:
                 arguments = json.loads(raw_arguments) if isinstance(raw_arguments, str) else raw_arguments
             except json.JSONDecodeError:
                 arguments = {}
+                protocol_error = "invalid_tool_arguments"
+            if not isinstance(arguments, dict):
+                arguments, protocol_error = {}, "invalid_tool_arguments"
             calls.append(ToolCall(id=call.get("id") or str(uuid.uuid4()), name=function.get("name", ""), arguments=arguments))
         usage = payload.get("usage", {})
         return ChatResponse(
@@ -180,6 +189,7 @@ class OpenAICompatibleGateway(LLMGateway):
             reasoning_content=message.get("reasoning_content"),
             reasoning_tokens=(usage.get("completion_tokens_details") or {}).get("reasoning_tokens"),
             cached_tokens=(usage.get("prompt_tokens_details") or {}).get("cached_tokens"),
+            protocol_error=protocol_error,
         )
 
     async def stream(self, messages: list[BaseMessage], tools: list[BaseTool] | None = None) -> AsyncIterator[str]:

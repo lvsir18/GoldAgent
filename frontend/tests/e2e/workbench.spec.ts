@@ -39,6 +39,17 @@ async function mockApi(page: Page) {
 
 test.beforeEach(async ({ page }) => mockApi(page));
 
+test("legacy tool-protocol answers are not presented as completed analysis", async ({ page }) => {
+  const leaked = '<tool_call><function=goldspot_query_gold_price><parameter=product_type>国内期货</parameter></function></tool_call><tool_call><function=goldspot_search_gold_news><parameter=query>美联储 黄金价格 加息 降息 最新</parameter><parameter=days_back>5</parameter><parameter=max_results>10</parameter></function></tool_call><tool_call><function=goldspot_calculate_technical_indicators><parameter=commodity_symbol>AU0</parameter></function></tool_call>\n仅供投资分析参考，不构成投资建议，也不执行任何自动交易。';
+  await page.route("**/api/v1/chat/stream", route => route.fulfill({status:200,contentType:"text/event-stream",body:`event: answer_delta\ndata: ${JSON.stringify({delta:leaked})}\n\nevent: run_finished\ndata: ${JSON.stringify({run_id:"fixture-protocol",session_id:"session-1",status:"incomplete"})}\n\n`}));
+  await page.goto("/chat");
+  await page.getByRole("combobox",{name:"研究模式"}).selectOption("deep");
+  await page.getByRole("textbox").fill("结合最近的消息和市场行情分析，根据我现在的持仓给我一些操作建议");
+  await page.getByRole("button",{name:"发送",exact:true}).click();
+  await expect(page.locator("main")).toContainText("未执行的工具指令");
+  await expect(page.locator("main")).not.toContainText(/goldspot_|<tool_call>|<function=/);
+});
+
 test("dashboard and core workbenches complete their primary flows", async ({ page }, testInfo) => {
   await page.goto("/dashboard");
   await expect(page.getByRole("heading", { name: "黄金市场仪表盘" })).toBeVisible();

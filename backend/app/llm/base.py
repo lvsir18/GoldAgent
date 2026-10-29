@@ -29,6 +29,7 @@ class ChatResponse:
     reasoning_content: str | None = field(default=None, repr=False)
     reasoning_tokens: int | None = None
     cached_tokens: int | None = None
+    protocol_error: str | None = None
 
 
 class LLMGateway(Protocol):

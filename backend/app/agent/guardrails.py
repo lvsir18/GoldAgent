@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import re
 from typing import Any
-from ..core.presentation import tool_name
+from ..core.presentation import tool_name, public_answer
+from ..llm.protocol import has_tool_protocol
 
 
 PROHIBITED_CERTAINTY = (
@@ -30,8 +31,8 @@ def verify_tool_results(tool_results: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def apply_financial_guardrail(answer: str, verification: dict[str, Any] | None, has_portfolio: bool) -> tuple[str, list[str]]:
-    cleaned = answer.strip()
-    flags: list[str] = []
+    flags: list[str] = ["invalid_tool_protocol"] if has_tool_protocol(answer) else []
+    cleaned = public_answer(answer).strip()
     for pattern in PROHIBITED_CERTAINTY:
         if re.search(pattern, cleaned, flags=re.IGNORECASE):
             cleaned = re.sub(pattern, "存在不确定性", cleaned, flags=re.IGNORECASE)

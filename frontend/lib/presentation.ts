@@ -56,6 +56,15 @@ export function limitationLabel(value: string, text: Translate) {
 
 // Only migrate the old automatically appended diagnostic footer, not normal prose/code.
 export function publicAnswer(content: string) {
+  const protocol = /<\s*(?:\/?tool_call\b|function\s*=|parameter\s*=)/i;
+  const decoded = content.replace(/&lt;/gi, "<").replace(/&gt;/gi, ">");
+  if (protocol.test(decoded)) {
+    const cleaned = decoded
+      .replace(/```[^\n]*\n[^]*?```/g, block => protocol.test(block) ? "" : block)
+      .replace(/<\s*tool_call\b[^>]*>[^]*?<\s*\/tool_call\s*>/gi, "")
+      .replace(/<\s*(?:\/?tool_call\b|function\s*=|parameter\s*=)[^]*/gi, "").trim();
+    content = "这条回答包含未执行的工具指令，不能作为已完成分析。请重新发送问题。\n\n" + cleaned;
+  }
   return content.replace(/\n\n数据说明：[^]*?(?=\n\n|$)/g, footer =>
     /(?:returned stale data|returned derived|\bfailed:|ValidationError|Traceback|pydantic)/.test(footer)
       ? "\n\n数据说明：部分资料存在获取或时效限制，请结合来源与最新行情核查。" : footer);
